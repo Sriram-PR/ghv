@@ -1,0 +1,9 @@
+# personal agent notes
+CLAUDE.local.md
+
+# build output
+/dist/
+/ghv
+/ghv-apply
+*.test
+*.out

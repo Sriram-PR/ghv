@@ -65,9 +65,8 @@ func (q Queue) Move(id string, from, to State, o Outcome) error {
 	if err := os.Rename(src, dst); err != nil {
 		return err
 	}
-	if err := os.Remove(outcomePath(q.Dir(from), id)); err != nil && !errors.Is(err, fs.ErrNotExist) {
-		return err
-	}
+	// The draft has moved; a leftover sidecar in the old directory is harmless.
+	os.Remove(outcomePath(q.Dir(from), id))
 	return writeOutcome(dstDir, id, o)
 }
 

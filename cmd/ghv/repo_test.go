@@ -53,6 +53,10 @@ func TestRemoteURL(t *testing.T) {
 	if got := remoteURL([]byte(cfg), "ORIGIN"); got != "" {
 		t.Fatalf("subsection match must be case-sensitive, got %q", got)
 	}
+	commented := "[remote \"origin\"] # main remote\n\turl = https://github.com/o/r\n"
+	if got := remoteURL([]byte(commented), "origin"); got != "https://github.com/o/r" {
+		t.Fatalf("header with a trailing comment: got %q", got)
+	}
 }
 
 func writeFile(t *testing.T, p, s string) {

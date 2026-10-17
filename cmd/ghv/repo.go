@@ -117,7 +117,8 @@ func remoteURL(cfg []byte, name string) string {
 			continue
 		}
 		if strings.HasPrefix(line, "[") {
-			section, sub, _ := strings.Cut(strings.Trim(line, "[]"), " ")
+			header, _, _ := strings.Cut(line[1:], "]")
+			section, sub, _ := strings.Cut(header, " ")
 			in = strings.EqualFold(section, "remote") && strings.Trim(sub, `"`) == name
 			continue
 		}

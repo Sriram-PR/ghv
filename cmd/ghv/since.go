@@ -27,11 +27,11 @@ func parseSince(s string, now time.Time) (time.Time, error) {
 	n, _ := strconv.Atoi(m[1])
 	switch m[2] {
 	case "m":
-		return now.Add(-time.Duration(n) * time.Minute), nil
+		return now.Add(-time.Duration(n) * time.Minute).UTC(), nil
 	case "h":
-		return now.Add(-time.Duration(n) * time.Hour), nil
+		return now.Add(-time.Duration(n) * time.Hour).UTC(), nil
 	}
-	return now.AddDate(0, 0, -n), nil
+	return now.AddDate(0, 0, -n).UTC(), nil
 }
 
 // since returns --since, or the zero time when it is not given.

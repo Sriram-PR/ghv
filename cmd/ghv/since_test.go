@@ -30,3 +30,11 @@ func TestParseSince(t *testing.T) {
 		}
 	}
 }
+
+func TestParseSinceAgeIsUTC(t *testing.T) {
+	now := time.Date(2026, 10, 18, 17, 30, 0, 0, time.FixedZone("IST", 5*3600+1800))
+	got, err := parseSince("7d", now)
+	if err != nil || got.Location() != time.UTC || got.Format(time.RFC3339) != "2026-10-11T12:00:00Z" {
+		t.Fatalf("parseSince(7d) = %v, %v", got, err)
+	}
+}

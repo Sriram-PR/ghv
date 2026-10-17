@@ -8,9 +8,13 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"time"
 )
 
-const maxCacheEntry = 8 << 20
+const (
+	maxCacheEntry = 8 << 20
+	cacheMaxAge   = 30 * 24 * time.Hour
+)
 
 // cacheEntry is one ETag-validated response in ~/.cache/ghv. Only ghv
 // reads the cache; ghv-apply never does.
@@ -73,6 +77,42 @@ func (c *Client) cacheStore(key string, resp *Response) {
 	cerr := f.Close()
 	if werr != nil || cerr != nil || os.Rename(f.Name(), filepath.Join(c.cacheDir, key)) != nil {
 		os.Remove(f.Name())
+	}
+	c.cachePrune()
+}
+
+// cacheTouch marks an entry as used, so cachePrune keeps it.
+func (c *Client) cacheTouch(key string) {
+	now := c.now()
+	os.Chtimes(filepath.Join(c.cacheDir, key), now, now)
+}
+
+// cachePrune deletes entries unused for cacheMaxAge, at most once a day;
+// the mtime of the .pruned stamp records the last run.
+func (c *Client) cachePrune() {
+	now := c.now()
+	stamp := filepath.Join(c.cacheDir, ".pruned")
+	if fi, err := os.Lstat(stamp); err == nil && now.Sub(fi.ModTime()) < 24*time.Hour {
+		return
+	}
+	f, err := os.CreateTemp(c.cacheDir, ".tmp-")
+	if err != nil {
+		return
+	}
+	f.Close()
+	if os.Chtimes(f.Name(), now, now) != nil || os.Rename(f.Name(), stamp) != nil {
+		os.Remove(f.Name())
+		return
+	}
+	entries, err := os.ReadDir(c.cacheDir)
+	if err != nil {
+		return
+	}
+	cutoff := now.Add(-cacheMaxAge)
+	for _, e := range entries {
+		if fi, err := e.Info(); err == nil && fi.Mode().IsRegular() && fi.ModTime().Before(cutoff) {
+			os.Remove(filepath.Join(c.cacheDir, e.Name()))
+		}
 	}
 }
 

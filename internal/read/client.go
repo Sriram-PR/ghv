@@ -119,6 +119,7 @@ func (c *Client) Get(ctx context.Context, path, accept string) (*Response, error
 	}
 	switch {
 	case resp.Status == http.StatusNotModified && cached != nil:
+		c.cacheTouch(key)
 		return cached.response(resp.Header), nil
 	case resp.Status == http.StatusOK && key != "":
 		c.cacheStore(key, resp)

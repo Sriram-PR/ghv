@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -79,9 +80,12 @@ func TestCacheFilesArePrivateAndHoldNoToken(t *testing.T) {
 	if err != nil || fi.Mode().Perm() != 0o700 {
 		t.Fatalf("dir: %v %v", fi, err)
 	}
-	entries, _ := os.ReadDir(dir)
+	entries := cacheFiles(t, dir)
 	if len(entries) != 1 {
 		t.Fatalf("%d cache files, want 1", len(entries))
+	}
+	if fi, err := os.Stat(filepath.Join(dir, ".pruned")); err != nil || fi.Mode().Perm() != 0o600 {
+		t.Fatalf("stamp: %v %v", fi, err)
 	}
 	p := filepath.Join(dir, entries[0].Name())
 	fi, _ = os.Stat(p)
@@ -135,10 +139,19 @@ func TestCacheIgnoresCorruptEntry(t *testing.T) {
 	s := &etagServer{etag: `"e"`, body: `{"ok":true}`}
 	c := cachedClient(t, "ghp_x", dir, s)
 	c.Get(context.Background(), "repos/o/r", "")
-	entries, _ := os.ReadDir(dir)
-	os.WriteFile(filepath.Join(dir, entries[0].Name()), []byte("{not json"), 0o600)
+	os.WriteFile(filepath.Join(dir, cacheFiles(t, dir)[0].Name()), []byte("{not json"), 0o600)
 	resp, err := c.Get(context.Background(), "repos/o/r", "")
 	if err != nil || string(resp.Body) != `{"ok":true}` || s.ifNone[1] != "" {
 		t.Fatalf("err = %v, body %q, If-None-Match %q", err, resp.Body, s.ifNone)
 	}
+}
+
+// cacheFiles lists the cache entries in dir, leaving out the prune stamp.
+func cacheFiles(t *testing.T, dir string) []os.DirEntry {
+	t.Helper()
+	entries, err := os.ReadDir(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return slices.DeleteFunc(entries, func(e os.DirEntry) bool { return e.Name() == ".pruned" })
 }

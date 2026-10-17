@@ -87,10 +87,11 @@ func errorFor(status int, h http.Header, body []byte, authenticated bool) error 
 		e.Code, e.Message = CodeTokenRequired, "this needs a read token"+quoted
 	case (status == 403 || status == 429) && h.Get("X-Ratelimit-Remaining") == "0":
 		e.Code = CodeRateLimited
+		e.Message = "rate limit reached"
 		if sec, err := strconv.ParseInt(h.Get("X-Ratelimit-Reset"), 10, 64); err == nil {
 			e.Reset = time.Unix(sec, 0)
+			e.Message += "; it resets at " + e.Reset.UTC().Format(time.RFC3339)
 		}
-		e.Message = "rate limit reached; it resets at " + e.Reset.UTC().Format(time.RFC3339)
 	case (status == 403 || status == 429) && (h.Get("Retry-After") != "" || strings.Contains(strings.ToLower(g.Message), "secondary rate limit")):
 		e.Code, e.RetryAfter = CodeSecondaryLimit, retryAfter(h)
 		e.Message = fmt.Sprintf("secondary rate limit reached; retry after %s%s", e.RetryAfter, quoted)

@@ -28,6 +28,8 @@ func TestErrorMapping(t *testing.T) {
 			CodeRateLimited, "rate limit reached; it resets at 2026-10-17T14:08:37Z"},
 		{"primary limit 429", "", 429, http.Header{"X-Ratelimit-Remaining": {"0"}, "X-Ratelimit-Reset": {"1792246117"}}, `{}`,
 			CodeRateLimited, "rate limit reached; it resets at 2026-10-17T14:08:37Z"},
+		{"primary limit without reset", "", 403, http.Header{"X-Ratelimit-Remaining": {"0"}}, `{}`,
+			CodeRateLimited, "rate limit reached"},
 		{"secondary with Retry-After", "ghp_x", 403, http.Header{"Retry-After": {"30"}}, `{"message":"You have exceeded a secondary rate limit."}`,
 			CodeSecondaryLimit, "secondary rate limit reached; retry after 30s (GitHub: You have exceeded a secondary rate limit.)"},
 		{"secondary without Retry-After", "ghp_x", 429, nil, `{"message":"You have exceeded a secondary rate limit"}`,

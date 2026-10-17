@@ -62,7 +62,7 @@ func lockHolder(path string) (int, error) {
 	if errors.Is(err, syscall.ELOOP) {
 		return 0, fmt.Errorf("%s is a symlink", path)
 	}
-	if err != nil && strings.Contains(err.Error(), "larger than") {
+	if errors.Is(err, errTooLarge) {
 		return 0, nil
 	}
 	if err != nil {

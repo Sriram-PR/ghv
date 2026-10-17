@@ -2,6 +2,7 @@ package draft
 
 import (
 	"crypto/sha256"
+	"errors"
 	"fmt"
 	"io"
 	"os"
@@ -38,6 +39,8 @@ func ReadFile(path string) (Loaded, error) {
 	return Loaded{Draft: d, Raw: raw, SHA256: sha256.Sum256(raw)}, nil
 }
 
+var errTooLarge = errors.New("larger than the limit")
+
 // readRegular refuses symlinks (O_NOFOLLOW) and opens FIFOs without
 // blocking (O_NONBLOCK) so the regular-file check can reject them.
 func readRegular(path string, max int64) ([]byte, error) {
@@ -54,14 +57,14 @@ func readRegular(path string, max int64) ([]byte, error) {
 		return nil, fmt.Errorf("%s is not a regular file", path)
 	}
 	if fi.Size() > max {
-		return nil, fmt.Errorf("%s is larger than %d bytes", path, max)
+		return nil, fmt.Errorf("%s: %w (%d bytes)", path, errTooLarge, max)
 	}
 	data, err := io.ReadAll(io.LimitReader(f, max+1))
 	if err != nil {
 		return nil, err
 	}
 	if int64(len(data)) > max {
-		return nil, fmt.Errorf("%s is larger than %d bytes", path, max)
+		return nil, fmt.Errorf("%s: %w (%d bytes)", path, errTooLarge, max)
 	}
 	return data, nil
 }

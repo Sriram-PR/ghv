@@ -12,8 +12,11 @@ import (
 
 var ErrLocked = errors.New("another ghv-apply session holds the queue lock")
 
+// Lock holds a raw descriptor, not an *os.File: the runtime closes an
+// unreachable *os.File, which would drop the flock while a caller still
+// relies on it.
 type Lock struct {
-	f *os.File
+	fd int
 }
 
 // Lock holds flock(2) on Root/lock until Release or process exit, so a
@@ -24,44 +27,48 @@ func (q Queue) Lock() (*Lock, error) {
 		return nil, err
 	}
 	path := filepath.Join(q.Root, "lock")
-	f, err := os.OpenFile(path, os.O_RDWR|os.O_CREATE|syscall.O_NOFOLLOW|syscall.O_NONBLOCK, 0o600)
+	fd, err := syscall.Open(path, syscall.O_RDWR|syscall.O_CREAT|syscall.O_NOFOLLOW|syscall.O_NONBLOCK|syscall.O_CLOEXEC, 0o600)
 	if errors.Is(err, syscall.ELOOP) {
 		return nil, fmt.Errorf("%s is a symlink", path)
 	}
 	if err != nil {
-		return nil, err
+		return nil, &os.PathError{Op: "open", Path: path, Err: err}
 	}
-	fi, err := f.Stat()
-	if err == nil && !fi.Mode().IsRegular() {
+	var st syscall.Stat_t
+	err = syscall.Fstat(fd, &st)
+	if err == nil && st.Mode&syscall.S_IFMT != syscall.S_IFREG {
 		err = fmt.Errorf("%s is not a regular file", path)
 	}
 	if err != nil {
-		f.Close()
+		syscall.Close(fd)
 		return nil, err
 	}
-	if err := syscall.Flock(int(f.Fd()), syscall.LOCK_EX|syscall.LOCK_NB); err != nil {
-		holder := lockHolder(f)
-		f.Close()
+	if err := syscall.Flock(fd, syscall.LOCK_EX|syscall.LOCK_NB); err != nil {
+		holder := lockHolder(fd)
+		syscall.Close(fd)
 		if errors.Is(err, syscall.EWOULDBLOCK) {
 			return nil, fmt.Errorf("%w (pid %s)", ErrLocked, holder)
 		}
 		return nil, err
 	}
 	pid := strconv.Itoa(os.Getpid())
-	if err := f.Truncate(0); err != nil {
-		f.Close()
+	if err := syscall.Ftruncate(fd, 0); err != nil {
+		syscall.Close(fd)
 		return nil, err
 	}
-	if _, err := f.WriteAt([]byte(pid), 0); err != nil {
-		f.Close()
+	if _, err := syscall.Pwrite(fd, []byte(pid), 0); err != nil {
+		syscall.Close(fd)
 		return nil, err
 	}
-	return &Lock{f: f}, nil
+	return &Lock{fd: fd}, nil
 }
 
-func lockHolder(f *os.File) string {
+func lockHolder(fd int) string {
 	buf := make([]byte, 32)
-	n, _ := f.ReadAt(buf, 0)
+	n, err := syscall.Pread(fd, buf, 0)
+	if err != nil || n < 0 {
+		return "unknown"
+	}
 	pid, err := strconv.Atoi(strings.TrimSpace(string(buf[:n])))
 	if err != nil || pid <= 0 {
 		return "unknown"
@@ -69,7 +76,13 @@ func lockHolder(f *os.File) string {
 	return strconv.Itoa(pid)
 }
 
-// Release drops the lock and leaves the file in place.
+// Release drops the lock and leaves the file in place. A second Release
+// is an error and closes nothing, since the descriptor may be reused.
 func (l *Lock) Release() error {
-	return l.f.Close()
+	if l.fd < 0 {
+		return errors.New("queue lock already released")
+	}
+	fd := l.fd
+	l.fd = -1
+	return syscall.Close(fd)
 }

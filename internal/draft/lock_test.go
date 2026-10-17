@@ -5,6 +5,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"runtime"
 	"strconv"
 	"strings"
 	"sync"
@@ -157,5 +158,42 @@ func TestLockConcurrentStarts(t *testing.T) {
 				t.Fatalf("stale=%v round %d: %d sessions hold the lock", stale, round, held)
 			}
 		}
+	}
+}
+
+// A lock nobody references must still be held: the garbage collector once
+// closed the file behind a dropped *Lock and released the flock with it.
+func TestLockSurvivesGC(t *testing.T) {
+	q := newQueue(t)
+	if _, err := q.Lock(); err != nil {
+		t.Fatal(err)
+	}
+	for range 3 {
+		runtime.GC()
+	}
+	if _, err := q.Lock(); !errors.Is(err, ErrLocked) {
+		t.Fatalf("second Lock after GC: err = %v, want ErrLocked", err)
+	}
+}
+
+func TestReleaseTwiceClosesNothingElse(t *testing.T) {
+	q := newQueue(t)
+	l, err := q.Lock()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := l.Release(); err != nil {
+		t.Fatal(err)
+	}
+	f, err := os.Open(filepath.Join(q.Root, "lock"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer f.Close()
+	if err := l.Release(); err == nil {
+		t.Fatal("second Release returned no error")
+	}
+	if _, err := f.Stat(); err != nil {
+		t.Fatalf("second Release closed another file: %v", err)
 	}
 }

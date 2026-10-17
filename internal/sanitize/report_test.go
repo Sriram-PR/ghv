@@ -1,6 +1,7 @@
 package sanitize
 
 import (
+	"fmt"
 	"slices"
 	"strings"
 	"testing"
@@ -125,6 +126,23 @@ func TestScanCapsEachClass(t *testing.T) {
 	want := []string{"body:1:201: control ... (50 more not shown)", "body:1:202: invisible ... (50 more not shown)"}
 	if !slices.Equal(summaries, want) {
 		t.Errorf("summaries = %q, want %q", summaries, want)
+	}
+}
+
+func TestScanCapsAClassAcrossChecks(t *testing.T) {
+	var b strings.Builder
+	for i := range 60 {
+		fmt.Fprintf(&b, "@ü https://ü.example/%d ", i)
+	}
+	got := Scan("body", b.String())
+	n := 0
+	for _, f := range got {
+		if f.Class == NonASCII {
+			n++
+		}
+	}
+	if n != maxPerClass+1 {
+		t.Errorf("%d non-ascii findings, want %d", n, maxPerClass+1)
 	}
 }
 

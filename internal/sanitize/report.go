@@ -18,12 +18,12 @@ func Scan(field, text string) []Finding {
 	for _, check := range []func(field, text string) []Finding{
 		chars, mentions, commands, refs, links, mixedScripts, secrets,
 	} {
-		out = append(out, capPerClass(check(field, text))...)
+		out = append(out, check(field, text)...)
 	}
 	slices.SortStableFunc(out, func(a, b Finding) int {
 		return cmp.Or(cmp.Compare(a.Line, b.Line), cmp.Compare(a.Col, b.Col))
 	})
-	return out
+	return capPerClass(out)
 }
 
 func capPerClass(fs []Finding) []Finding {

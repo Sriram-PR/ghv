@@ -53,9 +53,9 @@ func TestExtract(t *testing.T) {
 		entry{name: "e/f/c.txt", data: "C"},
 	)
 	dir := filepath.Join(t.TempDir(), "out")
-	files, n, err := Extract(ra, size, dir, limits)
-	if err != nil || !slices.Equal(files, []string{"a.txt", "d/b.sh", "e/f/c.txt"}) || n != 4 {
-		t.Fatalf("files %q, %d bytes, err %v", files, n, err)
+	x, err := Extract(ra, size, dir, limits)
+	if err != nil || !slices.Equal(x.Files, []string{"a.txt", "d/b.sh", "e/f/c.txt"}) || x.Entries != 4 || x.Bytes != 4 {
+		t.Fatalf("%+v, err %v", x, err)
 	}
 	b, _ := os.ReadFile(filepath.Join(dir, "d", "b.sh"))
 	fi, _ := os.Stat(filepath.Join(dir, "d", "b.sh"))
@@ -74,6 +74,10 @@ func TestExtractRefusesUnsafeEntries(t *testing.T) {
 		{"absolute", []entry{{name: "/tmp/evil", data: "x"}}},
 		{"empty name", []entry{{name: "", data: "x"}}},
 		{"backslash", []entry{{name: `a\..\b`, data: "x"}}},
+		{"newline", []entry{{name: "a\nb", data: "x"}}},
+		{"escape", []entry{{name: "a\x1b[2Jb", data: "x"}}},
+		{"delete", []entry{{name: "a\x7fb", data: "x"}}},
+		{"C1 control", []entry{{name: "d\u009b/b", data: "x"}}},
 		{"symlink", []entry{{name: "link", mode: fs.ModeSymlink | 0o777, data: "/etc/passwd"}}},
 		{"named pipe", []entry{{name: "fifo", mode: fs.ModeNamedPipe | 0o644}}},
 		{"duplicate", []entry{{name: "a", data: "1"}, {name: "a", data: "2"}}},
@@ -84,7 +88,7 @@ func TestExtractRefusesUnsafeEntries(t *testing.T) {
 			parent := t.TempDir()
 			dir := filepath.Join(parent, "out")
 			ra, size := zipOf(t, tt.entries...)
-			_, _, err := Extract(ra, size, dir, limits)
+			_, err := Extract(ra, size, dir, limits)
 			if !errors.Is(err, ErrUnsafe) {
 				t.Fatalf("err %v, want ErrUnsafe", err)
 			}
@@ -99,7 +103,7 @@ func TestExtractNeedsANewDirectory(t *testing.T) {
 	dir := t.TempDir()
 	os.WriteFile(filepath.Join(dir, "a"), []byte("keep"), 0o600)
 	ra, size := zipOf(t, entry{name: "b", data: "x"})
-	_, _, err := Extract(ra, size, dir, limits)
+	_, err := Extract(ra, size, dir, limits)
 	if err == nil || !strings.Contains(err.Error(), "already exists") {
 		t.Fatalf("err %v", err)
 	}
@@ -117,7 +121,7 @@ func TestExtractCaps(t *testing.T) {
 	t.Run("bytes", func(t *testing.T) {
 		ra, size := zipOf(t, entry{name: "a", data: strings.Repeat("0", 600)}, entry{name: "b", data: strings.Repeat("0", 600)})
 		dir := filepath.Join(t.TempDir(), "out")
-		_, _, err := Extract(ra, size, dir, Limits{MaxBytes: 1000, MaxFiles: 10})
+		_, err := Extract(ra, size, dir, Limits{MaxBytes: 1000, MaxFiles: 10})
 		if !errors.Is(err, ErrTooLarge) || exists(dir) {
 			t.Fatalf("err %v, dir left %v", err, exists(dir))
 		}
@@ -125,7 +129,7 @@ func TestExtractCaps(t *testing.T) {
 	t.Run("files", func(t *testing.T) {
 		ra, size := zipOf(t, entry{name: "a"}, entry{name: "b"}, entry{name: "c"})
 		dir := filepath.Join(t.TempDir(), "out")
-		_, _, err := Extract(ra, size, dir, Limits{MaxBytes: 1000, MaxFiles: 2})
+		_, err := Extract(ra, size, dir, Limits{MaxBytes: 1000, MaxFiles: 2})
 		if !errors.Is(err, ErrTooLarge) || exists(dir) {
 			t.Fatalf("err %v, dir left %v", err, exists(dir))
 		}
@@ -156,7 +160,7 @@ func lyingZip(t *testing.T) (*bytes.Reader, int64) {
 func TestExtractRefusesLyingSizes(t *testing.T) {
 	ra, size := lyingZip(t)
 	dir := filepath.Join(t.TempDir(), "out")
-	_, _, err := Extract(ra, size, dir, Limits{MaxBytes: 1 << 20, MaxFiles: 10})
+	_, err := Extract(ra, size, dir, Limits{MaxBytes: 1 << 20, MaxFiles: 10})
 	if err == nil || exists(dir) {
 		t.Fatalf("err %v, dir left %v", err, exists(dir))
 	}
@@ -164,7 +168,7 @@ func TestExtractRefusesLyingSizes(t *testing.T) {
 
 func TestExtractRefusesNonZip(t *testing.T) {
 	dir := filepath.Join(t.TempDir(), "out")
-	_, _, err := Extract(strings.NewReader("not a zip"), 9, dir, limits)
+	_, err := Extract(strings.NewReader("not a zip"), 9, dir, limits)
 	if err == nil || exists(dir) {
 		t.Fatalf("err %v, dir left %v", err, exists(dir))
 	}

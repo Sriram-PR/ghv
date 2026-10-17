@@ -165,3 +165,67 @@ func exists(p string) bool {
 	_, err := os.Lstat(p)
 	return err == nil
 }
+
+func TestRunArtifactsDownloadRepeatedName(t *testing.T) {
+	h := artifactsHub(t, zipBytes(t, "a", "A"), zipBytes(t, "c", "C"), "")
+	e, _, _ := testEnv(t, h)
+	setToken(t, e, "ghp_x")
+	r := runWith(t, registry, e, "run", "artifacts", "7", "-R", "o/r", "--download", "out", "--name", "cov", "--name", "cov")
+	if r.code != 0 || r.stdout != "saved cov: 1 file in out/cov\n" {
+		t.Fatalf("exit %d, stderr %q, stdout %q", r.code, r.stderr, r.stdout)
+	}
+}
+
+// oneArtifactHub serves run 7 with one artifact, dist, whose metadata
+// claims size bytes but which serves body.
+func oneArtifactHub(t *testing.T, size int, body []byte) *fakeHub {
+	h := newHub(t)
+	h.api["/repos/o/r/actions/runs/7/artifacts?per_page=100"] = fmt.Sprintf(`{"total_count":1,"artifacts":[
+{"id":1,"name":"dist","size_in_bytes":%d,"expired":false,"expires_at":"2026-12-01T00:00:00Z","digest":"sha256:%x"}]}`, size, sha256.Sum256(body))
+	h.redirect["/repos/o/r/actions/artifacts/1/zip"] = artifactURL + "1.zip?sig=s"
+	h.files[artifactURL+"1.zip"] = body
+	return h
+}
+
+func TestRunArtifactsDownloadShortZip(t *testing.T) {
+	z := zipBytes(t, "a", "A")
+	h := oneArtifactHub(t, len(z)+10, z)
+	e, _, _ := testEnv(t, h)
+	setToken(t, e, "ghp_x")
+	r := runWith(t, registry, e, "run", "artifacts", "7", "-R", "o/r", "--download", "out")
+	if r.code != 1 || !strings.Contains(r.stderr, fmt.Sprintf("got %d of %d bytes", len(z), len(z)+10)) || exists(filepath.Join(e.dir, "out")) {
+		t.Fatalf("exit %d, stderr %q", r.code, r.stderr)
+	}
+}
+
+func TestRunArtifactsDownloadCappedByMaxSize(t *testing.T) {
+	body := []byte(strings.Repeat("z", 2<<20))
+	h := oneArtifactHub(t, 3<<20, body)
+	e, _, _ := testEnv(t, h)
+	setToken(t, e, "ghp_x")
+	r := runWith(t, registry, e, "run", "artifacts", "7", "-R", "o/r", "--download", "out", "--max-size", "1")
+	if r.code != 1 || !strings.Contains(r.stderr, "over 1048576 bytes") || exists(filepath.Join(e.dir, "out")) {
+		t.Fatalf("exit %d, stderr %q", r.code, r.stderr)
+	}
+}
+
+func TestRunArtifactsEntryCapCountsDirectories(t *testing.T) {
+	h := artifactsHub(t, zipBytes(t, "d/", "", "d/a", "A"), zipBytes(t, "c", "C"), "")
+	e, _, _ := testEnv(t, h)
+	setToken(t, e, "ghp_x")
+	r := runWith(t, registry, e, "run", "artifacts", "7", "-R", "o/r", "--download", "out", "--max-files", "2")
+	if r.code != 1 || !strings.Contains(r.stderr, "the archive is over its limit") || exists(filepath.Join(e.dir, "out")) {
+		t.Fatalf("exit %d, stderr %q", r.code, r.stderr)
+	}
+}
+
+func TestRunArtifactsNoExpiryDate(t *testing.T) {
+	h := newHub(t)
+	h.api["/repos/o/r/actions/runs/7/artifacts?per_page=100"] = `{"total_count":1,"artifacts":[
+{"id":1,"name":"dist","size_in_bytes":3,"expired":false,"expires_at":null,"digest":null}]}`
+	e, _, _ := testEnv(t, h)
+	r := runWith(t, registry, e, "run", "artifacts", "7", "-R", "o/r")
+	if r.code != 0 || r.stdout != "dist  3  no expiry date\n" {
+		t.Fatalf("exit %d, stderr %q, stdout %q", r.code, r.stderr, r.stdout)
+	}
+}

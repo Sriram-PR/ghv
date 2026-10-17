@@ -25,10 +25,20 @@ type Limits struct {
 	MaxFiles int
 }
 
+// Extracted is what Extract wrote: the regular files, in archive order,
+// every entry including directories, and the bytes written.
+type Extracted struct {
+	Files   []string
+	Entries int
+	Bytes   int64
+}
+
 type File struct {
 	Name string
 	Data []byte
 }
+
+func isControl(r rune) bool { return r < 0x20 || r >= 0x7f && r <= 0x9f }
 
 func open(ra io.ReaderAt, size int64) (*zip.Reader, error) {
 	zr, err := zip.NewReader(ra, size)
@@ -55,6 +65,8 @@ func check(f *zip.File) (string, bool, error) {
 	switch {
 	case !filepath.IsLocal(name) || strings.Contains(name, `\`):
 		return "", false, fmt.Errorf("%w: %q is not a local path", ErrUnsafe, f.Name)
+	case strings.ContainsFunc(f.Name, isControl):
+		return "", false, fmt.Errorf("%w: %q has a control character", ErrUnsafe, f.Name)
 	case mode&fs.ModeSymlink != 0:
 		return "", false, fmt.Errorf("%w: %q is a symlink", ErrUnsafe, f.Name)
 	case mode.IsDir() || strings.HasSuffix(f.Name, "/"):
@@ -68,56 +80,57 @@ func check(f *zip.File) (string, bool, error) {
 // Extract writes the archive's files into dir, which it creates and which
 // must not exist yet, through an os.Root, so nothing lands outside it. No
 // file is overwritten and none is executable. On any error dir is removed.
-// It returns the files written, in archive order, and their total size.
-func Extract(ra io.ReaderAt, size int64, dir string, lim Limits) (files []string, written int64, err error) {
+func Extract(ra io.ReaderAt, size int64, dir string, lim Limits) (x Extracted, err error) {
 	zr, err := open(ra, size)
 	if err != nil {
-		return nil, 0, err
+		return Extracted{}, err
 	}
 	if len(zr.File) > lim.MaxFiles {
-		return nil, 0, fmt.Errorf("%w: %d entries, over %d", ErrTooLarge, len(zr.File), lim.MaxFiles)
+		return Extracted{}, fmt.Errorf("%w: %d entries, over %d", ErrTooLarge, len(zr.File), lim.MaxFiles)
 	}
 	if err := os.Mkdir(dir, 0o755); errors.Is(err, fs.ErrExist) {
-		return nil, 0, fmt.Errorf("%s already exists; give a new directory", dir)
+		return Extracted{}, fmt.Errorf("%s already exists; give a new directory", dir)
 	} else if err != nil {
-		return nil, 0, err
+		return Extracted{}, err
 	}
 	root, err := os.OpenRoot(dir)
 	if err != nil {
 		os.Remove(dir)
-		return nil, 0, err
+		return Extracted{}, err
 	}
 	defer func() {
 		root.Close()
 		if err != nil {
 			os.RemoveAll(dir)
-			files, written = nil, 0
+			x = Extracted{}
 		}
 	}()
+	var files []string
+	var written int64
 	for _, f := range zr.File {
 		name, isDir, _ := check(f)
 		if isDir {
 			if err := root.MkdirAll(name, 0o755); err != nil {
-				return nil, 0, err
+				return Extracted{}, err
 			}
 			continue
 		}
 		if d := path.Dir(name); d != "." {
 			if err := root.MkdirAll(d, 0o755); err != nil {
-				return nil, 0, err
+				return Extracted{}, err
 			}
 		}
 		n, err := extractFile(root, f, name, lim.MaxBytes-written)
 		written += n
 		if errors.Is(err, ErrTooLarge) {
-			return nil, 0, fmt.Errorf("%w: over %d bytes", ErrTooLarge, lim.MaxBytes)
+			return Extracted{}, fmt.Errorf("%w: over %d bytes", ErrTooLarge, lim.MaxBytes)
 		}
 		if err != nil {
-			return nil, 0, err
+			return Extracted{}, err
 		}
 		files = append(files, name)
 	}
-	return files, written, nil
+	return Extracted{files, len(zr.File), written}, nil
 }
 
 func extractFile(root *os.Root, f *zip.File, name string, room int64) (int64, error) {

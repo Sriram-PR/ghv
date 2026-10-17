@@ -91,7 +91,7 @@ func pickAssets(g githubRelease, names []string) ([]githubAsset, error) {
 	pick := g.Assets
 	if len(names) > 0 {
 		pick = nil
-		for _, n := range names {
+		for _, n := range unique(names) {
 			i := -1
 			for j, as := range g.Assets {
 				if as.Name == n {

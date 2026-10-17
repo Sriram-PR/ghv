@@ -124,3 +124,14 @@ func TestRunIDs(t *testing.T) {
 		t.Fatalf("--max-size 0: exit %d, stderr %q", r.code, r.stderr)
 	}
 }
+
+func TestRunLogsFailedNamesTheSizeCap(t *testing.T) {
+	h := logsHub(t)
+	h.files[jobLogURL+"71.txt"] = []byte(strings.Repeat("x", 1<<20))
+	e, _, _ := testEnv(t, h)
+	setToken(t, e, "ghp_x")
+	r := runWith(t, registry, e, "run", "logs", "38920693349", "-R", "o/r", "--failed", "--max-size", "1")
+	if r.code != 1 || !strings.Contains(r.stderr, "--max-size 1 MiB") {
+		t.Fatalf("exit %d, stderr %q", r.code, r.stderr)
+	}
+}

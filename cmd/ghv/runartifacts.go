@@ -4,7 +4,6 @@ import (
 	"context"
 	"crypto/sha256"
 	"encoding/json"
-	"errors"
 	"fmt"
 	"io"
 	"os"
@@ -140,8 +139,11 @@ func printArtifacts(a *app, list []artifactView) error {
 	rows := make([][]string, len(list))
 	for i, v := range list {
 		state := "expired"
-		if !v.Expired && v.ExpiresAt != nil {
+		switch {
+		case !v.Expired && v.ExpiresAt != nil:
 			state = "expires " + v.ExpiresAt.UTC().Format(time.RFC3339)
+		case !v.Expired:
+			state = "no expiry date"
 		}
 		rows[i] = []string{v.Name, strconv.FormatInt(v.Size, 10), state}
 	}
@@ -161,7 +163,7 @@ func (a *app) pickArtifacts(list []artifactView, names []string, id int64) ([]ar
 			pick = append(pick, v)
 		}
 	}
-	for _, n := range names {
+	for _, n := range unique(names) {
 		i := -1
 		for j, v := range list {
 			if v.Name == n {
@@ -199,37 +201,40 @@ func saveArtifacts(ctx context.Context, c *read.Client, repo string, pick []arti
 		}
 	}()
 	for _, v := range pick {
-		files, n, err := saveArtifact(ctx, c, repo, v, target, lim)
+		x, err := saveArtifact(ctx, c, repo, v, target, lim)
 		if err != nil {
 			return nil, err
 		}
-		lim.MaxBytes -= n
-		lim.MaxFiles -= len(files)
-		saved = append(saved, artifactSaved{Name: v.Name, Files: files})
+		lim.MaxBytes -= x.Bytes
+		lim.MaxFiles -= x.Entries
+		saved = append(saved, artifactSaved{Name: v.Name, Files: x.Files})
 	}
 	return saved, nil
 }
 
 // saveArtifact downloads the zip into a temporary file inside target, so
 // nothing is written outside it, checks the digest, and extracts it.
-func saveArtifact(ctx context.Context, c *read.Client, repo string, v artifactView, target string, lim archive.Limits) ([]string, int64, error) {
+func saveArtifact(ctx context.Context, c *read.Client, repo string, v artifactView, target string, lim archive.Limits) (archive.Extracted, error) {
 	tmp, err := os.CreateTemp(target, ".download-*.zip")
 	if err != nil {
-		return nil, 0, err
+		return archive.Extracted{}, err
 	}
 	defer os.Remove(tmp.Name())
 	defer tmp.Close()
 	max := v.Size
-	if max <= 0 {
+	if max <= 0 || max > lim.MaxBytes {
 		max = lim.MaxBytes
 	}
 	h := sha256.New()
 	n, err := c.Download(ctx, fmt.Sprintf("repos/%s/actions/artifacts/%d/zip", repo, v.ID), "", io.MultiWriter(tmp, h), max)
 	if err != nil {
-		return nil, 0, err
+		return archive.Extracted{}, err
 	}
-	if err := checkDigest(v.Digest, h.Sum(nil)); errors.Is(err, errDigest) {
-		return nil, 0, fmt.Errorf("artifact %s %w", v.Name, err)
+	if v.Size > 0 && n != v.Size {
+		return archive.Extracted{}, fmt.Errorf("artifact %s: got %d of %d bytes", v.Name, n, v.Size)
+	}
+	if err := checkDigest(v.Digest, h.Sum(nil)); err != nil {
+		return archive.Extracted{}, fmt.Errorf("artifact %s %w", v.Name, err)
 	}
 	return archive.Extract(tmp, n, filepath.Join(target, v.Name), lim)
 }

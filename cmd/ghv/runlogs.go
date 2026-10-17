@@ -5,6 +5,7 @@ import (
 	"cmp"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"slices"
@@ -86,6 +87,9 @@ func runRunLogs(ctx context.Context, a *app) error {
 	} else {
 		v.Jobs, err = allJobLogs(ctx, c, repo, id, max)
 	}
+	if errors.Is(err, read.ErrTooLarge) {
+		return fmt.Errorf("%w: the logs are over --max-size %d MiB", read.ErrTooLarge, max>>20)
+	}
 	if err != nil {
 		return err
 	}
@@ -106,7 +110,9 @@ func runRunLogs(ctx context.Context, a *app) error {
 		if !strings.HasSuffix(log, "\n") {
 			log += "\n"
 		}
-		io.WriteString(a.stdout, log)
+		if _, err := io.WriteString(a.stdout, log); err != nil {
+			return err
+		}
 	}
 	return nil
 }

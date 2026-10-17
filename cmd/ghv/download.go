@@ -4,6 +4,7 @@ import (
 	"encoding/hex"
 	"errors"
 	"path/filepath"
+	"slices"
 	"strings"
 )
 
@@ -23,4 +24,15 @@ func checkDigest(digest string, sum []byte) error {
 		return errDigest
 	}
 	return nil
+}
+
+// unique drops repeated names, keeping the first of each.
+func unique(names []string) []string {
+	var out []string
+	for _, n := range names {
+		if !slices.Contains(out, n) {
+			out = append(out, n)
+		}
+	}
+	return out
 }

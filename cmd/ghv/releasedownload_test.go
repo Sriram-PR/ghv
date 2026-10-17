@@ -108,3 +108,12 @@ func TestReleaseDownloadRefusals(t *testing.T) {
 		})
 	}
 }
+
+func TestReleaseDownloadRepeatedAsset(t *testing.T) {
+	h := assetsHub(t, "tool.tar.gz", "TOOL", "TOOL")
+	e, _, _ := testEnv(t, h)
+	r := runWith(t, registry, e, "release", "download", "v1.0.0", "-R", "o/r", "--asset", "notes.txt", "--asset", "notes.txt")
+	if r.code != 0 || r.stdout != "saved notes.txt (5 bytes, no digest from GitHub)\n" {
+		t.Fatalf("exit %d, stderr %q, stdout %q", r.code, r.stderr, r.stdout)
+	}
+}

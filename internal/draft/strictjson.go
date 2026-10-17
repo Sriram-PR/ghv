@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"strings"
 	"unicode/utf8"
 )
 
@@ -13,7 +14,8 @@ const maxJSONDepth = 32
 
 // checkStrictJSON rejects what encoding/json would quietly accept:
 // duplicate keys (last one wins), null (leaves the zero value), invalid
-// UTF-8 (becomes U+FFFD), and trailing data.
+// UTF-8 or an escaped lone surrogate (both become U+FFFD), and trailing
+// data. A literal U+FFFD is refused too, since it cannot be told apart.
 func checkStrictJSON(data []byte) error {
 	if !utf8.Valid(data) {
 		return errors.New("not valid UTF-8")
@@ -48,6 +50,9 @@ func walkJSON(dec *json.Decoder, depth int) error {
 				return err
 			}
 			key, _ := k.(string)
+			if strings.ContainsRune(key, utf8.RuneError) {
+				return errors.New("key contains U+FFFD")
+			}
 			if seen[key] {
 				return fmt.Errorf("duplicate key %q", key)
 			}
@@ -66,6 +71,9 @@ func walkJSON(dec *json.Decoder, depth int) error {
 		}
 		_, err = dec.Token()
 		return err
+	}
+	if s, ok := tok.(string); ok && strings.ContainsRune(s, utf8.RuneError) {
+		return errors.New("string contains U+FFFD")
 	}
 	return nil
 }

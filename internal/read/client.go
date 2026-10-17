@@ -44,6 +44,7 @@ type Client struct {
 	hc      *http.Client
 	ua      string
 	maxBody int64
+	sleep   func(context.Context, time.Duration) error
 }
 
 type Response struct {
@@ -65,6 +66,7 @@ func NewClient(o Options) *Client {
 		kind:    KindOf(o.Token),
 		ua:      ua,
 		maxBody: maxResponse,
+		sleep:   sleepCtx,
 		hc: &http.Client{
 			Transport: Guard{Next: authTransport{token: o.Token, next: base}},
 			Timeout:   requestTimeout,
@@ -83,11 +85,7 @@ func (c *Client) Get(ctx context.Context, path, accept string) (*Response, error
 	if err != nil {
 		return nil, err
 	}
-	req, err := c.newRequest(ctx, u.String(), accept)
-	if err != nil {
-		return nil, err
-	}
-	return c.send(req)
+	return c.do(ctx, func() (*http.Request, error) { return c.newRequest(ctx, u.String(), accept) })
 }
 
 func (c *Client) newRequest(ctx context.Context, u, accept string) (*http.Request, error) {

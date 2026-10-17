@@ -7,12 +7,15 @@ import (
 	"net/http"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/Sriram-PR/ghv/internal/read/readtest"
 )
 
 func fakeClient(token string, h http.HandlerFunc) *Client {
-	return NewClient(Options{Token: token, Transport: readtest.Transport{Handler: h}})
+	c := NewClient(Options{Token: token, Transport: readtest.Transport{Handler: h}})
+	c.sleep = func(context.Context, time.Duration) error { return nil }
+	return c
 }
 
 func TestClientSendsTokenToAPIHostOnly(t *testing.T) {

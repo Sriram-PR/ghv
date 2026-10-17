@@ -64,6 +64,12 @@ func (q Queue) Write(d Draft) (string, error) {
 	if err != nil {
 		return "", err
 	}
+	if len(data) > MaxSize {
+		return "", invalid("draft is larger than %d bytes", MaxSize)
+	}
+	if _, err := Decode(data); err != nil {
+		return "", err
+	}
 	dir, err := q.ensureDir(Pending)
 	if err != nil {
 		return "", err

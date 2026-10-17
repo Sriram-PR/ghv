@@ -82,6 +82,29 @@ func TestQueueWriteRefusesInvalid(t *testing.T) {
 	}
 }
 
+func TestQueueWriteRefusesOversize(t *testing.T) {
+	q := newQueue(t)
+	d := golden["issue.create"]
+	d.Fields = IssueCreateFields{Title: "t", Body: strings.Repeat("a", MaxSize)}
+	if _, err := q.Write(d); err == nil {
+		t.Fatal("Write queued a draft ReadFile would refuse")
+	}
+	if ents, _ := os.ReadDir(q.Dir(Pending)); len(ents) != 0 {
+		t.Fatalf("queue has %d entries, want 0", len(ents))
+	}
+}
+
+func TestQueueWriteRefusesWhatReadFileRejects(t *testing.T) {
+	for _, body := range []string{"\xff", "\uFFFD"} {
+		q := newQueue(t)
+		d := golden["issue.create"]
+		d.Fields = IssueCreateFields{Title: "t", Body: body}
+		if _, err := q.Write(d); err == nil {
+			t.Errorf("Write queued body %q", body)
+		}
+	}
+}
+
 func TestQueueWriteRefusesSymlinkedDir(t *testing.T) {
 	q := newQueue(t)
 	if err := os.MkdirAll(q.Root, 0o700); err != nil {

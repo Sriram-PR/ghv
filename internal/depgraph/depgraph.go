@@ -70,7 +70,7 @@ func allowed(pkg, dep string) bool {
 		return isStd(dep) || (local && slices.Contains(ghvAllowed, depRel))
 	case pkg == "cmd/ghv-apply":
 		if local {
-			return depRel != "internal/read"
+			return depRel != "internal/read" && depRel != "internal/archive"
 		}
 		return isStd(dep) || inModules(dep, applyThirdParty)
 	case slices.Contains(shared, pkg):

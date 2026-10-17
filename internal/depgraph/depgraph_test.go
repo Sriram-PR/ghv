@@ -53,6 +53,34 @@ func TestRepoImportGraph(t *testing.T) {
 	}
 }
 
+// isStd guesses from the path; go list knows.
+func TestIsStdMatchesGoList(t *testing.T) {
+	cmd := exec.Command("go", "list", "-deps", "-json=ImportPath,Standard", "./...")
+	cmd.Dir = "../.."
+	cmd.Env = append(os.Environ(), "CGO_ENABLED=0", "GOWORK=off", "GOFLAGS=")
+	out, err := cmd.Output()
+	if err != nil {
+		t.Fatal(err)
+	}
+	dec := json.NewDecoder(bytes.NewReader(out))
+	for {
+		var p struct {
+			ImportPath string
+			Standard   bool
+		}
+		err := dec.Decode(&p)
+		if errors.Is(err, io.EOF) {
+			return
+		}
+		if err != nil {
+			t.Fatal(err)
+		}
+		if isStd(p.ImportPath) != p.Standard {
+			t.Errorf("isStd(%q) = %v, go list says Standard = %v", p.ImportPath, !p.Standard, p.Standard)
+		}
+	}
+}
+
 func TestForbiddenFixtureIsCaught(t *testing.T) {
 	got := Violations(listPackages(t, "testdata/forbidden", "linux", "amd64"))
 	want := "cmd/ghv imports " + Module + "/internal/write"
@@ -90,6 +118,9 @@ func TestViolations(t *testing.T) {
 		{"ghv-apply imports read",
 			Package{m + "cmd/ghv-apply", []string{m + "internal/read"}},
 			[]string{"cmd/ghv-apply imports " + m + "internal/read"}},
+		{"ghv-apply imports archive",
+			Package{m + "cmd/ghv-apply", []string{m + "internal/archive"}},
+			[]string{"cmd/ghv-apply imports " + m + "internal/archive"}},
 		{"ghv-apply imports another module",
 			Package{m + "cmd/ghv-apply", []string{"github.com/evil/x"}},
 			[]string{"cmd/ghv-apply imports github.com/evil/x"}},

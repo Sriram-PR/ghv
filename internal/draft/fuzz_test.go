@@ -27,5 +27,16 @@ func FuzzDecode(f *testing.F) {
 		if d.ID != "" {
 			t.Fatalf("Decode set ID %q", d.ID)
 		}
+		enc, err := Encode(d)
+		if err != nil {
+			t.Fatalf("Encode of a decoded draft: %v", err)
+		}
+		again, err := Decode(enc)
+		if err != nil {
+			t.Fatalf("Decode(Encode(d)): %v\n%s", err, enc)
+		}
+		if !equalDraft(d, again) {
+			t.Fatalf("round trip changed the draft:\n%+v\n%+v", d, again)
+		}
 	})
 }

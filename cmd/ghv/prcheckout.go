@@ -3,9 +3,12 @@ package main
 import (
 	"context"
 	"fmt"
+	"io"
 	"os"
 	"os/exec"
 	"strings"
+
+	"github.com/Sriram-PR/ghv/internal/sanitize"
 )
 
 func init() {
@@ -42,13 +45,15 @@ func runPRCheckout(ctx context.Context, a *app) error {
 	if _, err := findGitDir(a.dir); err != nil {
 		return usagef("run ghv pr checkout inside a git checkout: %v", err)
 	}
-	if out, err := a.runGit(ctx, a.dir, checkoutArgs(repo, n)...); err != nil {
+	out, err := a.runGit(ctx, a.dir, checkoutArgs(repo, n)...)
+	if err != nil {
 		msg := strings.TrimSpace(string(out))
 		if msg == "" {
 			msg = err.Error()
 		}
 		return fmt.Errorf("git fetch failed: %s", msg)
 	}
+	io.WriteString(a.stderr, sanitize.Terminal(string(out)))
 	v := prCheckout{repo, n, fmt.Sprintf("pr-%d", n)}
 	if a.json() {
 		return writeJSON(a.stdout, v)

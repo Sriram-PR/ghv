@@ -82,3 +82,12 @@ func TestRunGitEnvironment(t *testing.T) {
 		t.Fatalf("gitEnv = %q", got)
 	}
 }
+
+func TestPRCheckoutShowsGitOutput(t *testing.T) {
+	var calls []gitCall
+	e := checkoutEnv(t, &calls, "From https://github.com/o/r\n * [new ref] pull/7/head -> pr-7 \x1b[31m\n", nil)
+	r := runWith(t, registry, e, "pr", "checkout", "7", "--json")
+	if r.code != 0 || !strings.Contains(r.stderr, " * [new ref] pull/7/head -> pr-7 <U+001B>[31m") || !strings.Contains(r.stdout, `"branch": "pr-7"`) {
+		t.Fatalf("exit %d, stdout %q, stderr %q", r.code, r.stdout, r.stderr)
+	}
+}

@@ -1,0 +1,20 @@
+{
+  "full_name": "cli/cli",
+  "description": "GitHub’s official command line tool \u001b]8;;https://evil\u0007x",
+  "fork": true,
+  "parent": "up/cli",
+  "archived": false,
+  "default_branch": "trunk",
+  "stars": 38000,
+  "forks": 6000,
+  "open_issues": 700,
+  "license": "MIT",
+  "topics": [
+    "cli",
+    "git\u202e"
+  ],
+  "homepage": "https://cli.github.com",
+  "created_at": "2019-10-03T19:08:39Z",
+  "pushed_at": "2026-10-17T22:01:05Z",
+  "url": "https://github.com/cli/cli"
+}

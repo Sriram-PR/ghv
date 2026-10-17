@@ -46,6 +46,8 @@ type Client struct {
 	kind    TokenKind
 	token   string
 	hc      *http.Client
+	dl      *http.Client
+	stall   time.Duration
 	ua      string
 	maxBody int64
 	sleep   func(context.Context, time.Duration) error
@@ -70,6 +72,7 @@ func NewClient(o Options) *Client {
 	if ua == "" {
 		ua = "ghv"
 	}
+	guard := Guard{Next: authTransport{token: o.Token, next: base}}
 	return &Client{
 		kind:    KindOf(o.Token),
 		token:   o.Token,
@@ -80,10 +83,9 @@ func NewClient(o Options) *Client {
 
 		cacheDir:      o.CacheDir,
 		maxCacheEntry: maxCacheEntry,
-		hc: &http.Client{
-			Transport: Guard{Next: authTransport{token: o.Token, next: base}},
-			Timeout:   requestTimeout,
-		},
+		hc:            &http.Client{Transport: guard, Timeout: requestTimeout},
+		dl:            &http.Client{Transport: guard},
+		stall:         requestTimeout,
 	}
 }
 

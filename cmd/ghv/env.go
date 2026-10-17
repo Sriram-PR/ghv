@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"io"
 	"net/http"
 	"path/filepath"
@@ -17,6 +18,22 @@ type env struct {
 	dir            string
 	transport      http.RoundTripper
 	now            func() time.Time
+	sleep          func(context.Context, time.Duration) error
+}
+
+// wait sleeps for d, or until ctx is done.
+func (e env) wait(ctx context.Context, d time.Duration) error {
+	if e.sleep != nil {
+		return e.sleep(ctx, d)
+	}
+	t := time.NewTimer(d)
+	defer t.Stop()
+	select {
+	case <-ctx.Done():
+		return ctx.Err()
+	case <-t.C:
+		return nil
+	}
 }
 
 func (e env) xdg(name, fallback string) string {

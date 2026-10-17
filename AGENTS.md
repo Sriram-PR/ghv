@@ -1,6 +1,6 @@
 # AGENTS.md: ghv
 
-`ghv` gives AI coding agents full read access to GitHub and no way to write to it. Every write is a draft a human reviews and sends with `ghv-apply`. The design lives in [`docs/specs/2026-10-16-ghv-design.md`](docs/specs/2026-10-16-ghv-design.md); read it before changing behaviour, and update it in the same change when behaviour changes.
+`ghv` gives AI coding agents full read access to GitHub and no way to write to it. Every write is a draft a human reviews and sends with `ghv-apply`.
 
 ## Security invariants
 
@@ -16,7 +16,7 @@ These hold in every commit. A change that breaks one is wrong, however useful.
 
 ## Workflow
 
-Spec → plan → implement. Plans go in `docs/plans/`. Write the failing test first; for the invariants above, the test is the deliverable.
+Write the failing test first; for the invariants above, the test is the deliverable.
 
 ## Conventions
 

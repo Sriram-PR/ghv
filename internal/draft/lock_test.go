@@ -6,6 +6,8 @@ import (
 	"os/exec"
 	"path/filepath"
 	"strconv"
+	"strings"
+	"sync"
 	"testing"
 )
 
@@ -101,20 +103,59 @@ func TestLockRefusesSymlink(t *testing.T) {
 	}
 }
 
-func TestReleaseLeavesForeignLock(t *testing.T) {
+// Unlinking the file on release would let a starter that opened the old
+// inode and one that created a new file both hold a lock.
+func TestReleaseKeepsLockFile(t *testing.T) {
 	q := newQueue(t)
 	l, err := q.Lock()
 	if err != nil {
 		t.Fatal(err)
 	}
-	p := filepath.Join(q.Root, "lock")
-	if err := os.WriteFile(p, []byte("999999"), 0o600); err != nil {
+	if err := l.Release(); err != nil {
 		t.Fatal(err)
 	}
-	if err := l.Release(); err == nil {
-		t.Fatal("Release removed a lock it does not hold")
+	if _, err := os.Lstat(filepath.Join(q.Root, "lock")); err != nil {
+		t.Fatalf("lock file after Release: %v", err)
 	}
-	if _, err := os.Stat(p); err != nil {
-		t.Fatalf("foreign lock was removed: %v", err)
+}
+
+func TestLockedErrorNamesHolder(t *testing.T) {
+	q := newQueue(t)
+	l, err := q.Lock()
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer l.Release()
+	_, err = q.Lock()
+	if want := "pid " + strconv.Itoa(os.Getpid()); err == nil || !strings.Contains(err.Error(), want) {
+		t.Fatalf("second Lock: err = %v, want it to name %q", err, want)
+	}
+}
+
+func TestLockConcurrentStarts(t *testing.T) {
+	dead := strconv.Itoa(deadPID(t))
+	for _, stale := range []bool{false, true} {
+		for round := range 200 {
+			q := newQueue(t)
+			if stale {
+				plantLock(t, q, dead)
+			}
+			var wg sync.WaitGroup
+			var mu sync.Mutex
+			held := 0
+			for range 8 {
+				wg.Go(func() {
+					if _, err := q.Lock(); err == nil {
+						mu.Lock()
+						held++
+						mu.Unlock()
+					}
+				})
+			}
+			wg.Wait()
+			if held > 1 {
+				t.Fatalf("stale=%v round %d: %d sessions hold the lock", stale, round, held)
+			}
+		}
 	}
 }

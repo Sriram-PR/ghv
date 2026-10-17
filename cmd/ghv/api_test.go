@@ -121,6 +121,8 @@ func TestAPIGraphQLRefusals(t *testing.T) {
 		{[]string{"api", "graphql", "-q", "{ x }", "-F", "novalue"}, 2, "NAME=VALUE"},
 		{[]string{"api", "graphql", "-q", "{ x }", "-F", "1a=x"}, 2, "NAME=VALUE"},
 		{[]string{"api", "graphql", "-q", "{ x }", "-F", "a=1", "-F", "a=2"}, 2, "given twice"},
+		{[]string{"api", "graphql", "-q", "{ x }", "-F", "a=1", "-f", "a=x"}, 2, "given twice"},
+		{[]string{"api", "graphql", "-q", "{ x }", "-f", "novalue"}, 2, "NAME=VALUE"},
 		{[]string{"api", "graphql", "-q", "@missing.graphql"}, 2, "missing.graphql"},
 	}
 	for _, tt := range tests {
@@ -131,5 +133,26 @@ func TestAPIGraphQLRefusals(t *testing.T) {
 				t.Fatalf("exit %d, stderr %q", r.code, r.stderr)
 			}
 		})
+	}
+}
+
+func TestAPIGraphQLRawFields(t *testing.T) {
+	var body string
+	e, _, _ := testEnv(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		b, _ := io.ReadAll(r.Body)
+		body = string(b)
+		w.Header().Set("X-Oauth-Scopes", "")
+		io.WriteString(w, `{"data":{}}`)
+	}))
+	setToken(t, e, "ghp_x")
+	r := runWith(t, registry, e, "api", "graphql", "-q", "{ x }", "-f", "a=@me", "-f", "n=5", "-f", "b=true", "-f", "e=", "-F", "t=true")
+	if r.code != 0 {
+		t.Fatalf("exit %d, stderr %q", r.code, r.stderr)
+	}
+	var sent struct{ Variables map[string]any }
+	json.Unmarshal([]byte(body), &sent)
+	v := sent.Variables
+	if v["a"] != "@me" || v["n"] != "5" || v["b"] != "true" || v["e"] != "" || v["t"] != true || len(v) != 5 {
+		t.Fatalf("variables %v", v)
 	}
 }

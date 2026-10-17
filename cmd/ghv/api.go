@@ -35,6 +35,7 @@ func init() {
 		flags: []flag{
 			{name: "query", short: "q", kind: stringFlag, arg: "QUERY", help: "query document, or @FILE to read it from a file"},
 			{name: "field", short: "F", kind: multiFlag, arg: "NAME=VALUE", help: "variable: true, false, null and integers are typed, @FILE reads a file, anything else is a string"},
+			{name: "raw-field", short: "f", kind: multiFlag, arg: "NAME=VALUE", help: "string variable, sent as given"},
 		},
 		help: "Run a GraphQL query; mutations and subscriptions are refused",
 		run:  runGraphQL,
@@ -97,16 +98,24 @@ func runGraphQL(ctx context.Context, a *app) error {
 		return err
 	}
 	vars := map[string]any{}
-	for _, f := range a.inv.list("field") {
-		name, raw, ok := cutField(f)
-		if !ok {
-			return usagef("-F %q is not NAME=VALUE", f)
-		}
-		if _, dup := vars[name]; dup {
-			return usagef("-F %s given twice", name)
-		}
-		if vars[name], err = a.fieldValue(raw); err != nil {
-			return err
+	for _, fl := range []struct {
+		name, short string
+		typed       bool
+	}{{"field", "-F", true}, {"raw-field", "-f", false}} {
+		for _, f := range a.inv.list(fl.name) {
+			name, raw, ok := cutField(f)
+			if !ok {
+				return usagef("%s %q is not NAME=VALUE", fl.short, f)
+			}
+			if _, dup := vars[name]; dup {
+				return usagef("%s given twice", name)
+			}
+			vars[name] = raw
+			if fl.typed {
+				if vars[name], err = a.fieldValue(raw); err != nil {
+					return err
+				}
+			}
 		}
 	}
 	c, err := a.read()

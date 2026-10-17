@@ -74,7 +74,7 @@ func contentsPath(repo, p string) (string, error) {
 		if s == "" || s == "." || s == ".." {
 			return "", usagef("%q is not a path in the repository", p)
 		}
-		segs[i] = url.PathEscape(s)
+		segs[i] = pathSegment(s)
 	}
 	return "repos/" + repo + "/contents/" + strings.Join(segs, "/"), nil
 }

@@ -103,10 +103,10 @@ func TestFileBadPaths(t *testing.T) {
 
 func TestFilePathIsEscaped(t *testing.T) {
 	rt := newRoutes(t, map[string]string{
-		"/repos/o/r/contents/q%3F/h%23/b%5C/%C3%A9": `{"type":"file","encoding":"base64","size":1,"name":"x","path":"x","sha":"s","content":"eA=="}`,
+		"/repos/o/r/contents/%40npmcli/q%3F/h%23/b%5C/%C3%A9": `{"type":"file","encoding":"base64","size":1,"name":"x","path":"x","sha":"s","content":"eA=="}`,
 	})
 	e, _, _ := testEnv(t, rt)
-	r := runWith(t, registry, e, "file", "o/r", "q?/h#/b\\/\u00e9")
+	r := runWith(t, registry, e, "file", "o/r", "@npmcli/q?/h#/b\\/\u00e9")
 	if r.code != 0 || r.stdout != "x" {
 		t.Fatalf("exit %d, stderr %q, asked %q, stdout %q", r.code, r.stderr, rt.uris(), r.stdout)
 	}

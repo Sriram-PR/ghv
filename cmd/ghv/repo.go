@@ -36,7 +36,11 @@ func (a *app) repo() (string, error) {
 	}
 	r, err := inferRepo(a.dir)
 	if err != nil {
-		return "", usagef("no -R given, and %v", err)
+		hint := "OWNER/REPO"
+		if takesFlag(a.inv.cmd, "repo") {
+			hint = "-R OWNER/REPO"
+		}
+		return "", usagef("give %s: %v", hint, err)
 	}
 	return r, nil
 }

@@ -40,8 +40,12 @@ func testEnv(t *testing.T, h http.Handler) (env, *bytes.Buffer, *bytes.Buffer) {
 	return e, &out, &errb
 }
 
+// runWith runs ghv with args in e, clearing e's output first, so one env
+// can serve several runs.
 func runWith(t *testing.T, cmds []*command, e env, args ...string) result {
 	t.Helper()
+	e.stdout.(*bytes.Buffer).Reset()
+	e.stderr.(*bytes.Buffer).Reset()
 	code := run(context.Background(), cmds, args, e)
 	return result{code, e.stdout.(*bytes.Buffer).String(), e.stderr.(*bytes.Buffer).String()}
 }

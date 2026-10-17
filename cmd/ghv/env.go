@@ -19,6 +19,7 @@ type env struct {
 	transport      http.RoundTripper
 	now            func() time.Time
 	sleep          func(context.Context, time.Duration) error
+	git            func(ctx context.Context, dir string, args ...string) ([]byte, error)
 }
 
 // wait sleeps for d, or until ctx is done.

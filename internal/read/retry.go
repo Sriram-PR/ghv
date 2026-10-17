@@ -13,7 +13,7 @@ const (
 )
 
 // do sends the request build returns, and builds and sends it again after
-// a 5xx, a network error, or a secondary rate limit of up to a minute.
+// a 5xx, a network error, or a rate limit that lifts within a minute.
 func (c *Client) do(ctx context.Context, build func() (*http.Request, error)) (*Response, error) {
 	for attempt := 0; ; attempt++ {
 		req, err := build()
@@ -24,7 +24,7 @@ func (c *Client) do(ctx context.Context, build func() (*http.Request, error)) (*
 		if err == nil || ctx.Err() != nil {
 			return resp, err
 		}
-		wait, ok := retryDelay(err, attempt)
+		wait, ok := retryDelay(err, attempt, c.now())
 		if !ok {
 			return nil, err
 		}
@@ -34,7 +34,7 @@ func (c *Client) do(ctx context.Context, build func() (*http.Request, error)) (*
 	}
 }
 
-func retryDelay(err error, attempt int) (time.Duration, bool) {
+func retryDelay(err error, attempt int, now time.Time) (time.Duration, bool) {
 	if attempt >= maxRetries {
 		return 0, false
 	}
@@ -46,6 +46,11 @@ func retryDelay(err error, attempt int) (time.Duration, bool) {
 			return backoff, true
 		case ae.Code == CodeSecondaryLimit && ae.RetryAfter <= maxRetryAfter:
 			return ae.RetryAfter, true
+		case ae.Code == CodeRateLimited && !ae.Reset.IsZero():
+			// Reset has whole seconds; wait one more.
+			if wait := max(ae.Reset.Sub(now)+time.Second, time.Second); wait <= maxRetryAfter {
+				return wait, true
+			}
 		}
 		return 0, false
 	}

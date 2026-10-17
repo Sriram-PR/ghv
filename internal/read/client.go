@@ -49,6 +49,7 @@ type Client struct {
 	ua      string
 	maxBody int64
 	sleep   func(context.Context, time.Duration) error
+	now     func() time.Time
 
 	cacheDir      string
 	maxCacheEntry int64
@@ -75,6 +76,7 @@ func NewClient(o Options) *Client {
 		ua:      ua,
 		maxBody: maxResponse,
 		sleep:   sleepCtx,
+		now:     time.Now,
 
 		cacheDir:      o.CacheDir,
 		maxCacheEntry: maxCacheEntry,

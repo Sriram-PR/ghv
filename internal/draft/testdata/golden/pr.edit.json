@@ -1,0 +1,10 @@
+{
+  "schema": 1,
+  "kind": "pr.edit",
+  "repo": "reticlehq/reticle",
+  "created_at": "2026-10-16T05:05:12Z",
+  "fields": {
+    "number": 1638,
+    "title": "fix(server): clearer title"
+  }
+}

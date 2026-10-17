@@ -1,0 +1,10 @@
+{
+  "schema": 1,
+  "kind": "issue.create",
+  "repo": "reticlehq/reticle",
+  "created_at": "2026-10-16T05:05:12Z",
+  "fields": {
+    "title": "pr checks: --watch ignores --interval",
+    "body": "Steps:\n\n1. run `ghv pr checks 1 --watch`\n"
+  }
+}

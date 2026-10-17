@@ -1,0 +1,11 @@
+{
+  "schema": 1,
+  "kind": "review.reply",
+  "repo": "reticlehq/reticle",
+  "created_at": "2026-10-16T05:05:12Z",
+  "fields": {
+    "number": 1638,
+    "comment_id": 2210987654,
+    "body": "Done in 0123456.\n"
+  }
+}

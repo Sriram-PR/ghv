@@ -1,0 +1,15 @@
+{
+  "schema": 1,
+  "kind": "pr.create",
+  "repo": "reticlehq/reticle",
+  "created_at": "2026-10-16T05:05:12Z",
+  "fields": {
+    "base": "main",
+    "head": "Sriram-PR:fix/sequence-late-anchor",
+    "head_sha": "0123456789abcdef0123456789abcdef01234567",
+    "title": "fix(server): keep late anchors in sequence",
+    "body": "Fixes #12.\n\n<details>raw markdown</details>\n",
+    "draft": false,
+    "maintainer_can_modify": true
+  }
+}

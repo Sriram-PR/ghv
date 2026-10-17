@@ -16,13 +16,23 @@ const (
 )
 
 // Paginate GETs path and follows rel="next" links until it has limit
-// items. A page is a JSON array, or an object whose "items" is one, as
-// the search API returns.
+// items. A page is a JSON array, or an object holding one under a key in
+// listKeys, as the search, checks, and Actions APIs return.
 func (c *Client) Paginate(ctx context.Context, path, accept string, limit int) ([]json.RawMessage, error) {
+	return c.PaginateFunc(ctx, path, accept, limit, nil)
+}
+
+// PaginateFunc is Paginate keeping only the items keep accepts; limit
+// counts kept items. A nil keep keeps every item.
+func (c *Client) PaginateFunc(ctx context.Context, path, accept string, limit int, keep func(json.RawMessage) bool) ([]json.RawMessage, error) {
 	if limit <= 0 {
 		return nil, errors.New("limit must be positive")
 	}
-	p := withPerPage(path, min(limit, maxPerPage))
+	perPage := min(limit, maxPerPage)
+	if keep != nil {
+		perPage = maxPerPage
+	}
+	p := withPerPage(path, perPage)
 	var items []json.RawMessage
 	for range maxPages {
 		resp, err := c.Get(ctx, p, accept)
@@ -33,7 +43,11 @@ func (c *Client) Paginate(ctx context.Context, path, accept string, limit int) (
 		if err != nil {
 			return nil, err
 		}
-		items = append(items, page...)
+		for _, it := range page {
+			if keep == nil || keep(it) {
+				items = append(items, it)
+			}
+		}
 		if len(items) >= limit {
 			return items[:limit], nil
 		}
@@ -61,16 +75,20 @@ func withPerPage(path string, n int) string {
 	return fmt.Sprintf("%s%sper_page=%d", path, sep, n)
 }
 
+var listKeys = []string{"items", "check_runs", "workflow_runs", "jobs", "artifacts"}
+
 func pageItems(body []byte) ([]json.RawMessage, error) {
 	var items []json.RawMessage
 	if json.Unmarshal(body, &items) == nil {
 		return items, nil
 	}
-	var env struct {
-		Items *[]json.RawMessage `json:"items"`
-	}
-	if json.Unmarshal(body, &env) == nil && env.Items != nil {
-		return *env.Items, nil
+	var env map[string]json.RawMessage
+	if json.Unmarshal(body, &env) == nil {
+		for _, k := range listKeys {
+			if raw, ok := env[k]; ok && json.Unmarshal(raw, &items) == nil && items != nil {
+				return items, nil
+			}
+		}
 	}
 	return nil, errors.New("GitHub's response is not a list, so it cannot be paginated")
 }

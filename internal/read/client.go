@@ -121,6 +121,9 @@ func (c *Client) send(req *http.Request) (*Response, error) {
 	if int64(len(body)) > c.maxBody {
 		return nil, fmt.Errorf("%w (over %d bytes)", ErrTooLarge, c.maxBody)
 	}
+	if err := errorFor(resp.StatusCode, resp.Header, body, c.Authenticated()); err != nil {
+		return nil, err
+	}
 	return &Response{Status: resp.StatusCode, Header: resp.Header, Body: body}, nil
 }
 

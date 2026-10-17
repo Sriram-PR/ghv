@@ -37,14 +37,21 @@ type Options struct {
 	// nil means a clone of http.DefaultTransport. Tests use readtest.Transport.
 	Transport http.RoundTripper
 	UserAgent string
+	// CacheDir holds ETag-validated responses for authenticated reads;
+	// "" turns the cache off.
+	CacheDir string
 }
 
 type Client struct {
 	kind    TokenKind
+	token   string
 	hc      *http.Client
 	ua      string
 	maxBody int64
 	sleep   func(context.Context, time.Duration) error
+
+	cacheDir      string
+	maxCacheEntry int64
 }
 
 type Response struct {
@@ -64,9 +71,13 @@ func NewClient(o Options) *Client {
 	}
 	return &Client{
 		kind:    KindOf(o.Token),
+		token:   o.Token,
 		ua:      ua,
 		maxBody: maxResponse,
 		sleep:   sleepCtx,
+
+		cacheDir:      o.CacheDir,
+		maxCacheEntry: maxCacheEntry,
 		hc: &http.Client{
 			Transport: Guard{Next: authTransport{token: o.Token, next: base}},
 			Timeout:   requestTimeout,
@@ -79,13 +90,38 @@ func (c *Client) TokenKind() TokenKind { return c.kind }
 func (c *Client) Authenticated() bool { return c.kind != TokenNone }
 
 // Get sends GET https://api.github.com/<path>; path may carry a query.
-// An empty accept means GitHub's JSON media type.
+// An empty accept means GitHub's JSON media type. Authenticated reads are
+// conditional when the cache holds an ETag: a 304 costs no rate limit and
+// is answered from the cache. Anonymous 304s save nothing, so anonymous
+// reads skip the cache.
 func (c *Client) Get(ctx context.Context, path, accept string) (*Response, error) {
 	u, err := APIURL(path)
 	if err != nil {
 		return nil, err
 	}
-	return c.do(ctx, func() (*http.Request, error) { return c.newRequest(ctx, u.String(), accept) })
+	var key string
+	var cached *cacheEntry
+	if c.cacheDir != "" && c.Authenticated() {
+		key = cacheKey(c.token, accept, u.String())
+		cached = c.cacheLoad(key)
+	}
+	resp, err := c.do(ctx, func() (*http.Request, error) {
+		req, err := c.newRequest(ctx, u.String(), accept)
+		if err == nil && cached != nil {
+			req.Header.Set("If-None-Match", cached.ETag)
+		}
+		return req, err
+	})
+	if err != nil {
+		return nil, err
+	}
+	switch {
+	case resp.Status == http.StatusNotModified && cached != nil:
+		return cached.response(resp.Header), nil
+	case resp.Status == http.StatusOK && key != "":
+		c.cacheStore(key, resp)
+	}
+	return resp, nil
 }
 
 func (c *Client) newRequest(ctx context.Context, u, accept string) (*http.Request, error) {

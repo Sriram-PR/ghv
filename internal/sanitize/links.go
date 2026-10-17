@@ -46,10 +46,18 @@ func linkSpans(text string) []span {
 	for _, m := range htmlAttrRE.FindAllStringSubmatchIndex(text, -1) {
 		out = append(out, firstGroup(text, m))
 	}
+	out = slices.DeleteFunc(out, func(s span) bool { return s.url == "" })
 	marked := slices.Clone(out)
 	slices.SortFunc(marked, func(a, b span) int { return a.off - b.off })
+	reach := make([]int, len(marked))
+	for i, s := range marked {
+		reach[i] = s.off + len(s.url)
+		if i > 0 {
+			reach[i] = max(reach[i], reach[i-1])
+		}
+	}
 	for _, m := range bareRE.FindAllStringIndex(text, -1) {
-		if u := trimBare(text[m[0]:m[1]]); u != "" && !inside(marked, m[0]) {
+		if u := trimBare(text[m[0]:m[1]]); u != "" && !inside(marked, reach, m[0]) {
 			out = append(out, span{m[0], u})
 		}
 	}
@@ -59,9 +67,10 @@ func linkSpans(text string) []span {
 
 // inside reports whether off falls within a destination already found, so
 // "<https://a/b c>" is not reported again as the bare "https://a/b".
-func inside(sorted []span, off int) bool {
+// reach[i] is the furthest end among sorted[:i+1].
+func inside(sorted []span, reach []int, off int) bool {
 	i := sort.Search(len(sorted), func(i int) bool { return sorted[i].off > off }) - 1
-	return i >= 0 && off < sorted[i].off+len(sorted[i].url)
+	return i >= 0 && off < reach[i]
 }
 
 func firstGroup(text string, m []int) span {
@@ -147,9 +156,28 @@ func links(field, text string) []Finding {
 		switch {
 		case !isASCII(s.url):
 			out = append(out, l.finding(NonASCII, field, s.off, Line(s.url), "link"))
-		case strings.Contains(strings.ToLower(s.url), "xn--"):
+		case punycodeHost(s.url):
 			out = append(out, l.finding(NonASCII, field, s.off, Line(s.url), "punycode link"))
 		}
 	}
 	return out
+}
+
+func punycodeHost(u string) bool {
+	if _, rest, ok := strings.Cut(u, "://"); ok {
+		u = rest
+	}
+	if i := strings.IndexAny(u, "/?#"); i >= 0 {
+		u = u[:i]
+	}
+	if i := strings.LastIndexByte(u, '@'); i >= 0 {
+		u = u[i+1:]
+	}
+	u, _, _ = strings.Cut(u, ":")
+	for label := range strings.SplitSeq(u, ".") {
+		if strings.HasPrefix(strings.ToLower(label), "xn--") {
+			return true
+		}
+	}
+	return false
 }

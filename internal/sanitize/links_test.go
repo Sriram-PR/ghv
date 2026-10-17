@@ -25,6 +25,8 @@ func TestLinks(t *testing.T) {
 		{"javascript href", `<a href="javascript:alert(1)">x</a>`, []string{"javascript:alert(1)"}},
 		{"deduplicated", "https://d.example/a and https://d.example/a", []string{"https://d.example/a"}},
 		{"order", "[b](https://b.example) then https://a.example", []string{"https://b.example", "https://a.example"}},
+		{"empty targets", "[x]: <>\n<a href=\"\">x</a>", nil},
+		{"bare inside an outer destination", "[a](https://a.example/<https://b.example/c>/https://d.example/e)", []string{"https://a.example/<https://b.example/c>/https://d.example/e", "https://b.example/c"}},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -43,6 +45,9 @@ func TestLinkFindings(t *testing.T) {
 		{"ascii", "https://github.com/o/r", nil},
 		{"non-ascii host", "see https://gіthub.com/o/r", []string{"body:1:5: non-ascii https://gіthub.com/o/r (link)"}},
 		{"punycode", "[x](https://xn--gthub-n4a.com)", []string{"body:1:5: non-ascii https://xn--gthub-n4a.com (punycode link)"}},
+		{"punycode www", "www.xn--gthub-n4a.com/x", []string{"body:1:1: non-ascii www.xn--gthub-n4a.com/x (punycode link)"}},
+		{"punycode subdomain with port", "https://user@a.xn--gthub-n4a.com:8080/", []string{"body:1:1: non-ascii https://user@a.xn--gthub-n4a.com:8080/ (punycode link)"}},
+		{"xn-- outside the host", "https://a.example/xn--x?q=xn--y", nil},
 		{"invisible in url", "https://a.example/\u200bx", []string{"body:1:1: non-ascii https://a.example/<U+200B>x (link)"}},
 	}
 	for _, tt := range tests {

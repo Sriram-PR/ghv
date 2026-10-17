@@ -22,15 +22,19 @@ const (
 )
 
 var downloadHosts = map[string]bool{
-	"github.com":                    true,
-	"objects.githubusercontent.com": true,
+	"github.com":                                     true,
+	"objects.githubusercontent.com":                  true,
+	"release-assets.githubusercontent.com":           true,
+	"results-receiver.actions.githubusercontent.com": true,
 }
 
 var refusedHeaders = []string{"X-HTTP-Method-Override", "X-HTTP-Method", "X-Method-Override", "Content-Encoding"}
 
 // Guard admits GETs to GitHub's hosts and query-only GraphQL POSTs, and
 // refuses everything else before it reaches Next. http.Client calls it
-// again for every redirect hop.
+// again for every redirect hop. Only api.github.com receives an
+// Authorization header: download URLs are pre-signed, and anyone can
+// register a *.blob.core.windows.net account.
 type Guard struct {
 	Next http.RoundTripper
 }
@@ -47,7 +51,26 @@ func (g Guard) RoundTrip(req *http.Request) (*http.Response, error) {
 		}
 		return nil, fmt.Errorf("%w (%s %s: %v)", ErrReadOnly, req.Method, target, err)
 	}
+	if out.URL.Host != apiHost {
+		out = withoutAuthorization(out)
+	}
 	return g.Next.RoundTrip(out)
+}
+
+func withoutAuthorization(req *http.Request) *http.Request {
+	var out *http.Request
+	for k := range req.Header {
+		if strings.EqualFold(k, "Authorization") {
+			if out == nil {
+				out = req.Clone(req.Context())
+			}
+			delete(out.Header, k)
+		}
+	}
+	if out == nil {
+		return req
+	}
+	return out
 }
 
 func admit(req *http.Request) (*http.Request, error) {

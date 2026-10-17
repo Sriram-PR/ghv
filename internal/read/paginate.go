@@ -17,7 +17,7 @@ const (
 
 // Paginate GETs path and follows rel="next" links until it has limit
 // items. A page is a JSON array, or an object holding one under a key in
-// listKeys, as the search, checks, and Actions APIs return.
+// listKeys, as the search, checks, commit status, and Actions APIs return.
 func (c *Client) Paginate(ctx context.Context, path, accept string, limit int) ([]json.RawMessage, error) {
 	return c.PaginateFunc(ctx, path, accept, limit, nil)
 }
@@ -75,7 +75,7 @@ func withPerPage(path string, n int) string {
 	return fmt.Sprintf("%s%sper_page=%d", path, sep, n)
 }
 
-var listKeys = []string{"items", "check_runs", "workflow_runs", "jobs", "artifacts"}
+var listKeys = []string{"items", "check_runs", "statuses", "workflow_runs", "jobs", "artifacts"}
 
 func pageItems(body []byte) ([]json.RawMessage, error) {
 	var items []json.RawMessage

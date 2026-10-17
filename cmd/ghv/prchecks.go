@@ -110,22 +110,19 @@ func (a *app) checks(ctx context.Context, repo string, n int) (checksView, error
 	}
 	// The combined status reads "pending" when no status was ever set, so
 	// only its individual statuses count.
-	resp, err := c.Get(ctx, fmt.Sprintf("repos/%s/commits/%s/status", repo, sha), "")
+	statuses, err := c.Paginate(ctx, fmt.Sprintf("repos/%s/commits/%s/status", repo, sha), "", read.DefaultLimit)
 	if err != nil {
 		return v, err
 	}
-	var st struct {
-		Statuses []struct {
-			Context   string    `json:"context"`
-			State     string    `json:"state"`
-			TargetURL string    `json:"target_url"`
-			CreatedAt time.Time `json:"created_at"`
-		} `json:"statuses"`
-	}
-	if err := json.Unmarshal(resp.Body, &st); err != nil {
-		return v, fmt.Errorf("GitHub's commit status: %v", err)
-	}
-	for _, s := range st.Statuses {
+	for _, raw := range statuses {
+		var s struct {
+			Context   string `json:"context"`
+			State     string `json:"state"`
+			TargetURL string `json:"target_url"`
+		}
+		if err := json.Unmarshal(raw, &s); err != nil {
+			return v, fmt.Errorf("GitHub's commit status: %v", err)
+		}
 		v.Checks = append(v.Checks, checkView{Kind: "status", Name: s.Context, State: s.State, URL: s.TargetURL})
 	}
 	slices.SortStableFunc(v.Checks, func(x, y checkView) int {

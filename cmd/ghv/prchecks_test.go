@@ -32,7 +32,7 @@ func checksServer(t *testing.T, pendingRounds int, statuses string) (http.Handle
 			io.WriteString(w, `{"total_count":3,"check_runs":[`+
 				`{"name":"lint","status":"completed","conclusion":"success","html_url":"https://github.com/o/r/runs/1"},`+test+`,`+
 				`{"name":"docs \u202e","status":"completed","conclusion":"skipped","html_url":"https://github.com/o/r/runs/3"}]}`)
-		case "/repos/o/r/commits/" + checksSHA + "/status":
+		case "/repos/o/r/commits/" + checksSHA + "/status?per_page=100":
 			io.WriteString(w, statuses)
 		default:
 			t.Errorf("unexpected %s", r.URL.RequestURI())
@@ -95,5 +95,21 @@ func TestPRChecksWatchStopsOnCancel(t *testing.T) {
 	r := runWith(t, registry, e, "pr", "checks", "7", "-R", "o/r", "--watch")
 	if r.code != 1 || r.stdout != "" {
 		t.Fatalf("exit %d, stdout %q", r.code, r.stdout)
+	}
+}
+
+func TestPRChecksReadsEveryStatusPage(t *testing.T) {
+	base := "/repos/o/r/commits/" + checksSHA
+	rt := newRoutes(t, map[string]string{
+		"/repos/o/r/pulls/7":                 `{"number":7,"state":"open","head":{"label":"a:b","sha":"` + checksSHA + `"}}`,
+		base + "/check-runs?per_page=100":    `{"total_count":0,"check_runs":[]}`,
+		base + "/status?per_page=100":        `{"state":"pending","statuses":[{"context":"a","state":"success"}]}`,
+		base + "/status?per_page=100&page=2": `{"state":"pending","statuses":[{"context":"b","state":"pending"}]}`,
+	})
+	rt.header[base+"/status?per_page=100"] = http.Header{"Link": {`<https://api.github.com` + base + `/status?per_page=100&page=2>; rel="next"`}}
+	e, _, _ := testEnv(t, rt)
+	r := runWith(t, registry, e, "pr", "checks", "7", "-R", "o/r")
+	if r.code != 0 || !strings.HasPrefix(r.stdout, "o/r#7 at 9e1e1c9: 1 passed, 0 failed, 1 pending\n") {
+		t.Fatalf("exit %d, stderr %q, stdout:\n%s", r.code, r.stderr, r.stdout)
 	}
 }

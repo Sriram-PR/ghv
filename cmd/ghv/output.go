@@ -35,7 +35,7 @@ func escapeJSON(b []byte) []byte {
 		case r == '\n' || r == '\t' || (r >= 0x20 && r < 0x7f):
 			out.WriteByte(byte(r))
 		case r == utf8.RuneError && n == 1:
-			out.WriteString(`�`)
+			out.WriteString("\ufffd")
 		case sanitize.Terminal(string(r)) != string(r):
 			if r > 0xFFFF {
 				r -= 0x10000

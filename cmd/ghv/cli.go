@@ -192,8 +192,8 @@ func lookup(cmds []*command, args []string) (*command, []string) {
 	return nil, nil
 }
 
-// findFlag accepts --name and -S only, so a documented flag has one
-// spelling.
+// findFlag accepts only --name and the one-letter short form, so a
+// documented flag has no other spelling.
 func findFlag(flags []flag, tok string) (flag, bool) {
 	for _, f := range flags {
 		if tok == "--"+f.name || (f.short != "" && tok == "-"+f.short) {

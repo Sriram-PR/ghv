@@ -50,10 +50,7 @@ func run(ctx context.Context, cmds []*command, args []string, e env) int {
 		fmt.Fprint(e.stderr, helpText(cmds, nil))
 		return 2
 	case err != nil:
-		var cmd *command
-		if c, _ := lookup(cmds, args); c != nil {
-			cmd = c
-		}
+		cmd, _ := lookup(cmds, args)
 		return report(e, cmd, err, slices.Contains(args, "--json"))
 	}
 	if err := inv.cmd.run(ctx, &app{env: e, inv: inv}); err != nil {

@@ -8,8 +8,8 @@ import (
 )
 
 const (
-	maxRetries    = 3
-	maxRetryAfter = time.Minute
+	maxRetries = 3
+	maxWait    = time.Minute
 )
 
 // do sends the request build returns, and builds and sends it again after
@@ -44,13 +44,11 @@ func retryDelay(err error, attempt int, now time.Time) (time.Duration, bool) {
 		switch {
 		case ae.Code == CodeServer:
 			return backoff, true
-		case ae.Code == CodeSecondaryLimit && ae.RetryAfter <= maxRetryAfter:
+		case ae.Code == CodeSecondaryLimit && ae.RetryAfter <= maxWait:
 			return ae.RetryAfter, true
-		case ae.Code == CodeRateLimited && !ae.Reset.IsZero():
+		case ae.Code == CodeRateLimited && !ae.Reset.IsZero() && ae.Reset.Sub(now) <= maxWait:
 			// Reset has whole seconds; wait one more.
-			if wait := max(ae.Reset.Sub(now)+time.Second, time.Second); wait <= maxRetryAfter {
-				return wait, true
-			}
+			return max(ae.Reset.Sub(now)+time.Second, time.Second), true
 		}
 		return 0, false
 	}

@@ -18,6 +18,8 @@ func TestPrimaryLimitResettingWithinAMinuteIsWaitedOut(t *testing.T) {
 		slept []time.Duration
 	}{
 		{"resets in 30s", now.Unix() + 30, true, []time.Duration{31 * time.Second}},
+		{"resets in 60s", now.Unix() + 60, true, []time.Duration{61 * time.Second}},
+		{"resets in 61s", now.Unix() + 61, false, nil},
 		{"reset already passed", now.Unix() - 5, true, []time.Duration{time.Second}},
 		{"resets in 2 minutes", now.Unix() + 120, false, nil},
 	}

@@ -103,3 +103,18 @@ func TestTokenAnonymousSendsNothing(t *testing.T) {
 		t.Fatalf("json %q", r.stdout)
 	}
 }
+
+func TestTokenPathIsSanitised(t *testing.T) {
+	calls := 0
+	e, _, _ := testEnv(t, rateServer(t, nil, &calls))
+	e.getenv = func(k string) string {
+		if k == "XDG_CONFIG_HOME" {
+			return "/x\x1b]8;;https://evil\x07y"
+		}
+		return ""
+	}
+	r := runWith(t, registry, e, "token")
+	if r.code != 0 || strings.ContainsAny(r.stdout, "\x1b\x07") {
+		t.Fatalf("exit %d, stdout %q", r.code, r.stdout)
+	}
+}

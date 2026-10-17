@@ -122,7 +122,7 @@ func runToken(ctx context.Context, a *app) error {
 		return refused
 	}
 	w := func(k, val string) { fmt.Fprintf(a.stdout, "%-8s %s\n", k, val) }
-	w("token", v.Path)
+	w("token", sanitize.Line(v.Path))
 	w("type", string(v.Kind))
 	switch {
 	case !c.Authenticated():

@@ -7,7 +7,7 @@ import (
 
 const maxGraphQLDepth = 64
 
-// classifyQuery parses doc as a GraphQL executable document (spec section 2)
+// classifyQuery parses doc as a GraphQL executable document (GraphQL spec, section 2)
 // and accepts it only if every definition is a query operation or a fragment.
 func classifyQuery(doc string) error {
 	toks, err := lexGraphQL(doc)

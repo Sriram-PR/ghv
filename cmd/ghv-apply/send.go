@@ -2,11 +2,14 @@ package main
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"strings"
+	"time"
 
 	"github.com/Sriram-PR/ghv/internal/audit"
 	"github.com/Sriram-PR/ghv/internal/draft"
+	"github.com/Sriram-PR/ghv/internal/fetch"
 	"github.com/Sriram-PR/ghv/internal/sanitize"
 	"github.com/Sriram-PR/ghv/internal/write"
 )
@@ -39,8 +42,13 @@ func (ss *session) send(ctx context.Context, it item, d draft.Draft, fullName st
 		if f, ok := d.Fields.(draft.PRCreateFields); ok && res.HeadSHA != f.HeadSHA {
 			notes = append(notes, fmt.Sprintf("the pull request's head is %s, not the reviewed %s", res.HeadSHA, f.HeadSHA))
 		}
-		o.Note = strings.Join(notes, "; ")
 		ss.say("Sent: %s", res.URL)
+		if _, ok := d.Fields.(draft.ForkFields); ok {
+			if note := ss.waitForFork(ctx, res.FullName); note != "" {
+				notes = append(notes, note)
+			}
+		}
+		o.Note = strings.Join(notes, "; ")
 		if o.Note != "" {
 			ss.say("Warning: %s.", o.Note)
 		}
@@ -68,6 +76,35 @@ func (ss *session) send(ctx context.Context, it item, d draft.Draft, fullName st
 	ss.say("The request may have gone out, but GitHub's answer does not say what happened: %s", res.Message)
 	ss.say("%s stays in unknown/; check GitHub before asking for it again.", it.id)
 	return unsure, false
+}
+
+// Forks are made in the background after GitHub's 202.
+const (
+	forkPoll  = 3 * time.Second
+	forkTries = 21 // the first read at once, the last after 60 seconds
+)
+
+// waitForFork reads the fork until GitHub has made it, and says why not
+// when it gives up.
+func (ss *session) waitForFork(ctx context.Context, fullName string) string {
+	if fullName == "" {
+		return "GitHub did not say the fork's name"
+	}
+	ss.say("Waiting for GitHub to make the fork...")
+	for i := range forkTries {
+		if i > 0 {
+			ss.e.sleep(forkPoll)
+		}
+		_, err := ss.rv.fc.Repo(ctx, fullName)
+		if err == nil {
+			ss.say("Fork ready: https://github.com/%s", fullName)
+			return ""
+		}
+		if !errors.Is(err, fetch.ErrNotFound) {
+			return fmt.Sprintf("cannot check the fork: %v", err)
+		}
+	}
+	return "GitHub had not finished the fork after 60 seconds"
 }
 
 // headMoved says why a pull request cannot be sent now, or "" when its

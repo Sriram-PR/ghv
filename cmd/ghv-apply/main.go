@@ -25,6 +25,7 @@ type env struct {
 	rand           io.Reader
 	now            func() time.Time
 	afterFunc      func(time.Duration, func()) (stop func() bool)
+	sleep          func(time.Duration)
 	exit           func(code int)
 }
 
@@ -61,7 +62,8 @@ func main() {
 		afterFunc: func(d time.Duration, f func()) func() bool {
 			return time.AfterFunc(d, f).Stop
 		},
-		exit: os.Exit,
+		sleep: time.Sleep,
+		exit:  os.Exit,
 	}))
 }
 

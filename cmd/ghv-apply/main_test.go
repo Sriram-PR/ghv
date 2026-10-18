@@ -31,7 +31,8 @@ func testEnv(t *testing.T) env {
 		afterFunc: func(time.Duration, func()) func() bool {
 			return func() bool { return true }
 		},
-		exit: func(int) { panic("exit called") },
+		sleep: func(time.Duration) {},
+		exit:  func(int) { panic("exit called") },
 	}
 }
 

@@ -26,6 +26,7 @@ func testEnv(t *testing.T) env {
 		stderr:  &bytes.Buffer{},
 		home:    t.TempDir(),
 		openTTY: func() (terminal, error) { return nil, errors.New("no terminal in this test") },
+		edit:    func(string) error { return errNoEditor },
 		now:     func() time.Time { return time.Date(2026, 10, 18, 12, 0, 0, 0, time.UTC) },
 	}
 }

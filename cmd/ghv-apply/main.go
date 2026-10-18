@@ -20,6 +20,7 @@ type env struct {
 	stdout, stderr io.Writer
 	home           string // from the passwd entry, never $HOME
 	openTTY        func() (terminal, error)
+	edit           func(path string) error // opens path in the reviewer's editor
 	client         *http.Client
 	rand           io.Reader
 	now            func() time.Time
@@ -51,6 +52,7 @@ func main() {
 		stderr:  os.Stderr,
 		home:    home,
 		openTTY: openDevTTY,
+		edit:    editOnTTY,
 		client:  harden.Client(harden.Transport()),
 		rand:    rand.Reader,
 		now:     time.Now,

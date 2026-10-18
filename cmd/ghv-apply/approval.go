@@ -64,20 +64,25 @@ type action byte
 
 const (
 	actApprove action = 'a'
+	actEdit    action = 'e'
 	actReject  action = 'r'
 	actSkip    action = 's'
 	actDiff    action = 'd'
 	actQuit    action = 'q'
 )
 
-var actionWords = map[action]string{actApprove: "approve", actReject: "reject", actSkip: "skip", actDiff: "diff", actQuit: "quit"}
+var actionWords = map[action]string{actApprove: "approve", actEdit: "edit", actReject: "reject", actSkip: "skip", actDiff: "diff", actQuit: "quit"}
 
 // offered lists the answers for one draft: [a]pprove only when nothing
-// blocks sending it, [d]iff only when there is a diff to page.
-func offered(canSend, hasDiff bool) []action {
+// blocks sending it, [e]dit when it has text, [d]iff when there is a diff
+// to page.
+func offered(canSend, canEdit, hasDiff bool) []action {
 	var as []action
 	if canSend {
 		as = append(as, actApprove)
+	}
+	if canEdit {
+		as = append(as, actEdit)
 	}
 	as = append(as, actReject, actSkip)
 	if hasDiff {

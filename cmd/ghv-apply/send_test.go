@@ -64,7 +64,7 @@ func TestApproveSends(t *testing.T) {
 	sum := fmt.Sprintf("%x", req.SHA256())
 	for _, s := range []string{
 		"  request SHA-256 " + sum + "\n-- end of " + id,
-		"[a]pprove, [r]eject, [s]kip, or [q]uit? \nSent: " + commentURL + "\n\nSent 1, rejected 0, left 0 in the queue.\n",
+		"[a]pprove, [e]dit, [r]eject, [s]kip, or [q]uit? \nSent: " + commentURL + "\n\nSent 1, rejected 0, left 0 in the queue.\n",
 	} {
 		if !strings.Contains(ft.shown(), s) {
 			t.Fatalf("terminal lacks %q:\n%s", s, ft.shown())
@@ -193,7 +193,7 @@ func TestApproveNotOfferedWhenBlocked(t *testing.T) {
 	if r := runWith(e); r.code != 0 {
 		t.Fatalf("exit %d, stderr %q", r.code, r.stderr)
 	}
-	if !strings.Contains(ft.shown(), "  - o/r has no issue or pull request #7\nCheck before deciding:\n  - you have not taken part in o/r before\n[r]eject, [s]kip, or [q]uit? \nAnswer with one of the letters in brackets.\n") || len(f.bodies) != 0 {
+	if !strings.Contains(ft.shown(), "  - o/r has no issue or pull request #7\nCheck before deciding:\n  - you have not taken part in o/r before\n[e]dit, [r]eject, [s]kip, or [q]uit? \nAnswer with one of the letters in brackets.\n") || len(f.bodies) != 0 {
 		t.Fatalf("terminal:\n%s", ft.shown())
 	}
 }

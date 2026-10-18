@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"path/filepath"
+	"reflect"
 	"slices"
 	"strings"
 
@@ -154,44 +155,31 @@ func pending(q draft.Queue) ([]item, int, error) {
 	return items, unknown, nil
 }
 
+// shown is what the reviewer is looking at: the draft as it would be
+// sent, which an edit can change, and what ghv-apply learned about it.
+type shown struct {
+	d       draft.Draft
+	edited  bool
+	rc      reviewContext
+	req     *write.Request
+	canSend bool
+}
+
 // reviewOne shows a draft and acts on the answer. stop ends the session.
 func (ss *session) reviewOne(ctx context.Context, it item) (t tally, stop bool, err error) {
 	tty := ss.tty
-	var diff func(context.Context) (string, error)
-	var req *write.Request
-	var rc reviewContext
-	canSend := false
+	var cur *shown
 	if it.err != nil {
 		tty.Printf("Draft %s cannot be read: %s\n", it.id, sanitize.Line(it.err.Error()))
 		tty.Printf("ghv-apply will not send it; reject it to clear it from the queue.\n")
 	} else {
-		rep := sanitize.CheckDraft(it.loaded.Draft)
-		rc = ss.rv.context(ctx, it.loaded.Draft)
-		if rc.FullName != "" {
-			if r, err := write.Build(it.loaded.Draft, rc.FullName); err != nil {
-				rc.block("cannot build the request: %v", err)
-			} else {
-				req = &r
-			}
-		}
-		lines := []string{"Context from GitHub:"}
-		for _, l := range rc.Lines {
-			lines = append(lines, "  "+l)
-		}
-		lines = append(lines, "")
-		lines = append(lines, renderDraft(it.loaded, rep, req)...)
-		if err := page(tty, lines); err != nil {
+		cur = &shown{d: it.loaded.Draft, rc: ss.rv.context(ctx, it.loaded.Draft)}
+		if err := ss.present(it, cur); err != nil {
 			return left, false, err
 		}
-		v := judge(rep, rc)
-		for _, l := range renderVerdict(v) {
-			tty.Printf("%s\n", l)
-		}
-		diff = rc.Diff
-		canSend = req != nil && len(v.Blocks) == 0
 	}
-	as := offered(canSend, diff != nil)
 	for {
+		as := offered(cur != nil && cur.canSend, cur != nil && editable(cur.d), cur != nil && cur.rc.Diff != nil)
 		ans, err := tty.ReadLine(prompt(as))
 		if err != nil {
 			return left, false, err
@@ -203,10 +191,15 @@ func (ss *session) reviewOne(ctx context.Context, it item) (t tally, stop bool, 
 		}
 		switch act {
 		case actApprove:
-			t, stop := ss.send(ctx, it, rc.FullName, *req)
+			t, stop := ss.send(ctx, it, cur.d, cur.rc.FullName, *cur.req, cur.edited)
 			return t, stop, nil
+		case actEdit:
+			if err := ss.edit(ctx, it, cur); err != nil {
+				return left, false, err
+			}
+			continue
 		case actDiff:
-			if err := showDiff(ctx, tty, diff); err != nil {
+			if err := showDiff(ctx, tty, cur.rc.Diff); err != nil {
 				return left, false, err
 			}
 			continue
@@ -230,6 +223,65 @@ func (ss *session) reviewOne(ctx context.Context, it item) (t tally, stop bool, 
 		}
 		return left, true, nil
 	}
+}
+
+// present builds cur's request and verdict and pages the preview.
+func (ss *session) present(it item, cur *shown) error {
+	rep := sanitize.CheckDraft(cur.d)
+	cur.req = nil
+	var buildErr error
+	if cur.rc.FullName != "" {
+		if r, err := write.Build(cur.d, cur.rc.FullName); err != nil {
+			buildErr = err
+		} else {
+			cur.req = &r
+		}
+	}
+	lines := []string{"Context from GitHub:"}
+	for _, l := range cur.rc.Lines {
+		lines = append(lines, "  "+l)
+	}
+	lines = append(lines, "")
+	l := draft.Loaded{Draft: cur.d, Raw: it.loaded.Raw, SHA256: it.loaded.SHA256}
+	lines = append(lines, renderDraft(l, rep, cur.req)...)
+	if err := page(ss.tty, lines); err != nil {
+		return err
+	}
+	v := judge(rep, cur.rc)
+	if buildErr != nil {
+		v.Blocks = append(v.Blocks, sanitize.Line("cannot build the request: "+buildErr.Error()))
+	}
+	for _, l := range renderVerdict(v) {
+		ss.tty.Printf("%s\n", l)
+	}
+	cur.canSend = cur.req != nil && len(v.Blocks) == 0
+	return nil
+}
+
+// edit lets the reviewer change the draft's text in their editor. The
+// result is read once, checked like a new draft, and shown again in full
+// before it can be approved. The queue keeps the agent's file.
+func (ss *session) edit(ctx context.Context, it item, cur *shown) error {
+	text, err := editFile(ss.e.edit, it.id, editText(cur.d))
+	if err != nil {
+		ss.say("%v", err)
+		return nil
+	}
+	d, err := applyEdit(cur.d, text)
+	if err != nil {
+		ss.say("The edit was not used: %v", err)
+		return nil
+	}
+	if reflect.DeepEqual(d, cur.d) {
+		ss.say("No changes.")
+		return nil
+	}
+	cur.d, cur.edited = d, true
+	if d.Kind() == draft.KindPREdit {
+		cur.rc = ss.rv.context(ctx, d)
+	}
+	ss.say("Edited. ghv-apply sends this version; the queue keeps the agent's file.")
+	return ss.present(it, cur)
 }
 
 // showDiff pages a pull request's full diff. A failed fetch is shown, not

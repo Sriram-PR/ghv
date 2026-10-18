@@ -14,8 +14,7 @@ import (
 // send makes the approved request. The draft moves to unknown/ first, so a
 // crash mid-send never leaves it looking unsent; GitHub's answer decides
 // where it goes next. stop ends the session: nothing more can be sent.
-func (ss *session) send(ctx context.Context, it item, fullName string, req write.Request) (tally, bool) {
-	d := it.loaded.Draft
+func (ss *session) send(ctx context.Context, it item, d draft.Draft, fullName string, req write.Request, edited bool) (tally, bool) {
 	if f, ok := d.Fields.(draft.PRCreateFields); ok {
 		if why := ss.headMoved(ctx, d.Repo, f); why != "" {
 			ss.say("%s. Not sent; %s stays in the queue.", why, it.id)
@@ -28,7 +27,7 @@ func (ss *session) send(ctx context.Context, it item, fullName string, req write
 		return left, false
 	}
 	res := write.Send(ctx, ss.e.client, ss.tok, req)
-	o := draft.Outcome{At: now, Status: res.Status}
+	o := draft.Outcome{At: now, Status: res.Status, Edited: edited}
 	switch res.Fate {
 	case write.Done:
 		o.URL, o.FullName = res.URL, res.FullName

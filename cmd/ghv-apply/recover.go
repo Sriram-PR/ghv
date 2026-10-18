@@ -23,9 +23,9 @@ type found struct {
 
 // sameText compares a body GitHub stored, which can have CRLF line endings
 // and lose surrounding whitespace, with the draft's.
-func sameText(github, draft string) bool {
+func sameText(stored, drafted string) bool {
 	norm := func(s string) string { return strings.TrimSpace(strings.ReplaceAll(s, "\r\n", "\n")) }
-	return norm(github) == norm(draft)
+	return norm(stored) == norm(drafted)
 }
 
 // findSent looks on GitHub for what d made when it was sent at sentAt.

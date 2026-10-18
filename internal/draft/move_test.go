@@ -165,6 +165,30 @@ func TestMoveAnUndecodableDraft(t *testing.T) {
 	}
 }
 
+func TestMoveAnOversizedDraft(t *testing.T) {
+	q := newQueue(t)
+	dir, err := q.ensureDir(Pending)
+	if err != nil {
+		t.Fatal(err)
+	}
+	id := "d-000000000001"
+	path := filepath.Join(dir, id+".json")
+	big := bytes.Repeat([]byte(" "), MaxSize+1)
+	if err := os.WriteFile(path, big, 0o600); err != nil {
+		t.Fatal(err)
+	}
+	l, err := ReadFile(path)
+	if err == nil || l.SHA256 != sha256.Sum256(big) || l.Raw != nil {
+		t.Fatalf("ReadFile: %v, SHA-256 %x, %d bytes kept", err, l.SHA256, len(l.Raw))
+	}
+	if err := q.Move(id, Pending, Rejected, [32]byte{}, Outcome{}); !errors.Is(err, ErrChanged) {
+		t.Fatalf("Move with another sum: %v", err)
+	}
+	if err := q.Move(id, Pending, Rejected, l.SHA256, Outcome{Reason: "unreadable"}); err != nil {
+		t.Fatal(err)
+	}
+}
+
 func TestMoveRejectsBadID(t *testing.T) {
 	q := newQueue(t)
 	for _, id := range []string{"../x", "d-0123", "d-0123456789ab.json", ""} {

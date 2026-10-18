@@ -2,7 +2,6 @@ package draft
 
 import (
 	"bytes"
-	"crypto/sha256"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -60,11 +59,11 @@ func (q Queue) Move(id string, from, to State, sum [32]byte, o Outcome) error {
 		return err
 	}
 	dst := filepath.Join(dstDir, id+".json")
-	data, err := readRegular(src, MaxSize)
+	got, err := hashRegular(src)
 	if err != nil {
 		return err
 	}
-	if sha256.Sum256(data) != sum {
+	if got != sum {
 		return fmt.Errorf("draft %s: %w", id, ErrChanged)
 	}
 	if _, err := os.Lstat(dst); err == nil {

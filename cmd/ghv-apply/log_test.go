@@ -45,7 +45,7 @@ func TestCommandFlags(t *testing.T) {
 	if r := runWith(e, "zz-flags", "--no"); r.code != 2 || r.stderr != "ghv-apply: zz-flags takes only --yes\n" {
 		t.Fatalf("exit %d, stderr %q", r.code, r.stderr)
 	}
-	if r := runWith(e, "log", "--yes"); r.code != 2 || !strings.Contains(r.stderr, "log takes no arguments") {
+	if r := runWith(e, "log", "--yes"); r.code != 2 || r.stderr != "ghv-apply: log takes only --verify\n" {
 		t.Fatalf("exit %d, stderr %q", r.code, r.stderr)
 	}
 }

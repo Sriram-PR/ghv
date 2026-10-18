@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"fmt"
+	"slices"
 	"strings"
 
 	"github.com/Sriram-PR/ghv/internal/audit"
@@ -10,13 +11,17 @@ import (
 )
 
 func init() {
-	commands = append(commands, command{name: "log", help: "show the audit log of sent drafts", run: runLog})
+	commands = append(commands, command{name: "log", flags: []string{"--verify"},
+		help: "show the audit log of sent drafts; --verify checks it against your public events on GitHub", run: runLog})
 }
 
 func runLog(ctx context.Context, e env) error {
 	es, err := audit.Read(audit.Path(e.home))
 	if err != nil {
 		return err
+	}
+	if slices.Contains(e.args, "--verify") {
+		return verify(ctx, e, es)
 	}
 	if len(es) == 0 {
 		fmt.Fprintln(e.stdout, "The audit log is empty.")

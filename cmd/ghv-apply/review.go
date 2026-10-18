@@ -65,26 +65,47 @@ func runReview(ctx context.Context, e env) error {
 		return err
 	}
 	defer lock.Release()
-	items, unknown, err := pending(q)
+	items, unknowns, err := pending(q)
 	if err != nil {
 		return err
 	}
-	if len(items) == 0 {
+	if len(items) == 0 && len(unknowns) == 0 {
 		tty.Printf("No drafts wait for review.\n")
-	} else {
+		return nil
+	}
+	if len(unknowns) > 0 {
+		tty.Printf("%s.\n", waitsToBeChecked(len(unknowns)))
+	}
+	if len(items) > 0 {
 		tty.Printf("%s for review.\n", plural(len(items), "draft waits", "drafts wait"))
-		s, err := unlock(ctx, e, tty, data)
+	}
+	s, err := unlock(ctx, e, tty, data)
+	if err != nil {
+		return err
+	}
+	defer s.Zero()
+	watch := &limitWatch{rt: e.client.Transport}
+	ss := &session{e: e, tty: idleTerm{tty, e.afterFunc, func() {
+		s.Zero()
+		tty.Printf("\nNo answer for 5 minutes: the session ended, and the write token was cleared from memory.\n")
+		e.exit(1)
+	}, &idleGate{}}, q: q, tok: s.Token, watch: watch,
+		rv: &reviewer{fc: fetch.New(withTransport(e.client, watch)), login: s.Login, now: e.now()}}
+	still := 0
+	if len(unknowns) > 0 {
+		kept, requeued, err := ss.recoverUnknown(ctx, unknowns)
 		if err != nil {
 			return err
 		}
-		defer s.Zero()
-		watch := &limitWatch{rt: e.client.Transport}
-		ss := &session{e: e, tty: idleTerm{tty, e.afterFunc, func() {
-			s.Zero()
-			tty.Printf("\nNo answer for 5 minutes: the session ended, and the write token was cleared from memory.\n")
-			e.exit(1)
-		}, &idleGate{}}, q: q, tok: s.Token, watch: watch,
-			rv: &reviewer{fc: fetch.New(withTransport(e.client, watch)), login: s.Login, now: e.now()}}
+		still = kept
+		if requeued > 0 {
+			if items, _, err = pending(q); err != nil {
+				return err
+			}
+			tty.Printf("%s for review.\n", plural(len(items), "draft waits", "drafts wait"))
+		}
+	}
+	if len(items) > 0 {
 		for i, it := range items {
 			tty.Printf("\n== Draft %d of %d ==\n", i+1, len(items))
 			t, stop, err := ss.reviewOne(ctx, it)
@@ -98,11 +119,11 @@ func runReview(ctx context.Context, e env) error {
 			}
 		}
 		tty.Printf("\nSent %d, rejected %d, left %d in the queue.\n", ss.counts[sent], ss.counts[rejected], ss.counts[left])
-		unknown += ss.counts[unsure]
 	}
-	if unknown > 0 {
-		tty.Printf("%s for its result to be checked, which this ghv-apply cannot do yet.\n",
-			plural(unknown, "draft in unknown/ waits", "drafts in unknown/ wait"))
+	if still += ss.counts[unsure]; still == 1 {
+		tty.Printf("%s; the next ghv-apply session checks it again.\n", waitsToBeChecked(still))
+	} else if still > 1 {
+		tty.Printf("%s; the next ghv-apply session checks them again.\n", waitsToBeChecked(still))
 	}
 	return nil
 }
@@ -132,18 +153,19 @@ func unlock(ctx context.Context, e env, tty terminal, data []byte) (vault.Secret
 	return s, nil
 }
 
-// pending reads every pending draft once; unreadable ones sort last.
-func pending(q draft.Queue) ([]item, int, error) {
+// pending reads every pending draft once; unreadable ones sort last. It
+// also lists the drafts in unknown/.
+func pending(q draft.Queue) ([]item, []draft.Entry, error) {
 	entries, err := q.List()
 	if err != nil {
-		return nil, 0, err
+		return nil, nil, err
 	}
 	var items []item
-	unknown := 0
+	var unknowns []draft.Entry
 	for _, en := range entries {
 		switch en.State {
 		case draft.Unknown:
-			unknown++
+			unknowns = append(unknowns, en)
 		case draft.Pending:
 			l, err := draft.ReadFile(filepath.Join(q.Dir(draft.Pending), en.ID+".json"))
 			items = append(items, item{id: en.ID, loaded: l, err: err})
@@ -158,7 +180,7 @@ func pending(q draft.Queue) ([]item, int, error) {
 		}
 		return a.loaded.Draft.CreatedAt.Compare(b.loaded.Draft.CreatedAt)
 	})
-	return items, unknown, nil
+	return items, unknowns, nil
 }
 
 // shown is what the reviewer is looking at: the draft as it would be

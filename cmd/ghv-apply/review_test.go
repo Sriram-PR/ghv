@@ -165,16 +165,7 @@ func TestReviewUnreadableDraft(t *testing.T) {
 func TestReviewNothingToDo(t *testing.T) {
 	ft := answers(t)
 	e, _ := reviewEnv(t, ft, baseRoutes())
-	id := queueDraft(t, e.home, draft.Draft{Repo: "o/r", CreatedAt: at(9), Fields: draft.IssueCreateFields{Title: "A", Body: ""}})
-	q := draft.Queue{Root: queueRoot(e.home)}
-	l, err := draft.ReadFile(filepath.Join(q.Dir(draft.Pending), id+".json"))
-	if err != nil {
-		t.Fatal(err)
-	}
-	if err := q.Move(id, draft.Pending, draft.Unknown, l.SHA256, draft.Outcome{At: at(10)}); err != nil {
-		t.Fatal(err)
-	}
-	if r := runWith(e); r.code != 0 || ft.shown() != "No drafts wait for review.\n1 draft in unknown/ waits for its result to be checked, which this ghv-apply cannot do yet.\n" {
+	if r := runWith(e); r.code != 0 || ft.shown() != "No drafts wait for review.\n" {
 		t.Fatalf("exit %d, stderr %q, terminal %q", r.code, r.stderr, ft.shown())
 	}
 }

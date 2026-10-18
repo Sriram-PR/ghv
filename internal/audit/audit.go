@@ -19,6 +19,9 @@ type Entry struct {
 	RequestSHA256 string    `json:"request_sha256"`
 	Status        int       `json:"status"`
 	URL           string    `json:"url"`
+	// Found marks a send whose answer was unclear, found on GitHub later:
+	// its status and request SHA-256 are not known.
+	Found bool `json:"found,omitempty"`
 }
 
 // Path is the log under home, which callers take from the passwd entry.

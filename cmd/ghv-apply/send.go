@@ -22,7 +22,7 @@ func (ss *session) send(ctx context.Context, it item, d draft.Draft, fullName st
 		}
 	}
 	now := ss.e.now().UTC()
-	if err := ss.q.Move(it.id, draft.Pending, draft.Unknown, it.loaded.SHA256, draft.Outcome{At: now, Note: "sending"}); err != nil {
+	if err := ss.q.Move(it.id, draft.Pending, draft.Unknown, it.loaded.SHA256, draft.Outcome{At: now, Note: "sending", Edited: edited}); err != nil {
 		ss.say("Not sent: %v", err)
 		return left, false
 	}

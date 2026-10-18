@@ -128,7 +128,7 @@ func TestApproveFates(t *testing.T) {
 				}
 			}},
 		{"no answer", apiReply{status: 502, body: `<html>`}, draft.Unknown,
-			"Sent, but GitHub's answer does not say what happened: GitHub answered 502\nd-ID stays in unknown/; check GitHub before asking for it again.\n\nSent 0, rejected 0, left 0 in the queue.\n1 draft in unknown/ waits for its result to be checked",
+			"The request may have gone out, but GitHub's answer does not say what happened: GitHub answered 502\nd-ID stays in unknown/; check GitHub before asking for it again.\n\nSent 0, rejected 0, left 0 in the queue.\n1 draft in unknown/ waits for its result to be checked",
 			func(t *testing.T, o *draft.Outcome) {
 				if o.Note != "sending" || !o.At.Equal(reviewNow) {
 					t.Fatalf("outcome %+v", o)
@@ -254,5 +254,27 @@ func TestApprovePullRequestWhoseHeadMoved(t *testing.T) {
 	}
 	if len(f.bodies) != 0 || states(t, e.home)[id].State != draft.Pending {
 		t.Fatalf("sent %q", f.bodies)
+	}
+}
+
+// GitHub's answer to a pull request edit names the pull request's author,
+// not the editor: editing someone else's pull request is not a warning.
+func TestApprovePREditOfAnotherAuthor(t *testing.T) {
+	ft := answers(t, oldPass, "a")
+	routes := baseRoutes()
+	routes["/repos/o/r/pulls/8"] = ok(`{"number":8,"title":"Fix","body":"","state":"open","user":{"login":"u"}}`)
+	url := "https://github.com/o/r/pull/8"
+	routes["PATCH /repos/o/r/pulls/8"] = apiReply{status: 200, body: `{"html_url":"` + url + `","user":{"login":"u"}}`}
+	e, _ := reviewEnv(t, ft, routes)
+	title := "Fix it"
+	id := queueDraft(t, e.home, draft.Draft{Repo: "o/r", CreatedAt: at(9), Fields: draft.PREditFields{Number: 8, Title: &title}})
+	if r := runWith(e); r.code != 0 {
+		t.Fatalf("exit %d, stderr %q", r.code, r.stderr)
+	}
+	if !strings.Contains(ft.shown(), "Sent: "+url+"\n") || strings.Contains(ft.shown(), "Warning:") {
+		t.Fatalf("terminal:\n%s", ft.shown())
+	}
+	if o := states(t, e.home)[id].Outcome; o == nil || o.Note != "" || o.URL != url {
+		t.Fatalf("outcome %+v", o)
 	}
 }

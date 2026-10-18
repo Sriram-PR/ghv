@@ -32,7 +32,8 @@ func (ss *session) send(ctx context.Context, it item, d draft.Draft, fullName st
 	case write.Done:
 		o.URL, o.FullName = res.URL, res.FullName
 		var notes []string
-		if !strings.EqualFold(res.Author, ss.rv.login) {
+		// A pull request edit's answer names the pull request's author.
+		if d.Kind() != draft.KindPREdit && !strings.EqualFold(res.Author, ss.rv.login) {
 			notes = append(notes, fmt.Sprintf("GitHub says %s made it, not %s", res.Author, ss.rv.login))
 		}
 		if f, ok := d.Fields.(draft.PRCreateFields); ok && res.HeadSHA != f.HeadSHA {
@@ -64,7 +65,7 @@ func (ss *session) send(ctx context.Context, it item, d draft.Draft, fullName st
 		ss.finish(it, draft.Pending, o)
 		return left, true
 	}
-	ss.say("Sent, but GitHub's answer does not say what happened: %s", res.Message)
+	ss.say("The request may have gone out, but GitHub's answer does not say what happened: %s", res.Message)
 	ss.say("%s stays in unknown/; check GitHub before asking for it again.", it.id)
 	return unsure, false
 }

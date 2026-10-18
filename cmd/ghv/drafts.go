@@ -113,6 +113,8 @@ func (s draftStatus) detail() string {
 	switch {
 	case s.Error != "":
 		return "unreadable: " + s.Error
+	case s.State == draft.Pending && s.Outcome != nil && s.Outcome.Note != "":
+		return "waiting for ghv-apply (" + s.Outcome.Note + ")"
 	case s.State == draft.Pending:
 		return "waiting for ghv-apply"
 	case s.State == draft.Unknown:

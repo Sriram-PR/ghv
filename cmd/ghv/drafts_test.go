@@ -50,6 +50,9 @@ func TestDrafts(t *testing.T) {
 	edit := write(13, "o/r", draft.PREditFields{Number: 7, Title: &title})
 	sent := write(14, "o/r", draft.ReviewReplyFields{Number: 7, CommentID: 101, Body: "r"})
 	move(sent, draft.Pending, draft.Unknown, draft.Outcome{At: at(14)})
+	back := write(15, "o/r", draft.CommentFields{Number: 12, Body: "d"})
+	move(back, draft.Pending, draft.Unknown, draft.Outcome{At: at(15)})
+	move(back, draft.Unknown, draft.Pending, draft.Outcome{At: at(15), Note: "not sent: GitHub answered 429: slow down"})
 	if err := os.WriteFile(filepath.Join(q.Dir(draft.Pending), "d-000000000000.json"), []byte("{"), 0o600); err != nil {
 		t.Fatal(err)
 	}
@@ -62,6 +65,7 @@ func TestDrafts(t *testing.T) {
 		{comment, "rejected|comment|#12|rejected: not now"},
 		{edit, "pending|pr.edit|#7 evil<U+202E>|waiting for ghv-apply"},
 		{sent, "unknown|review.reply|#7|sent; ghv-apply checks the result next session"},
+		{back, "pending|comment|#12|waiting for ghv-apply (not sent: GitHub answered 429: slow down)"},
 		{"d-000000000000", "pending|unreadable: invalid draft"},
 	}
 	if r.code != 0 || len(lines) != len(want) {

@@ -3,6 +3,7 @@ package fetch
 import (
 	"context"
 	"fmt"
+	"net/url"
 	"time"
 )
 
@@ -43,7 +44,7 @@ func (c *Client) Events(ctx context.Context, login string) ([]Event, error) {
 	var all []Event
 	for page := 1; page <= eventPages; page++ {
 		var evs []Event
-		if err := c.GetJSON(ctx, fmt.Sprintf("/users/%s/events/public?page=%d&per_page=100", login, page), &evs); err != nil {
+		if err := c.GetJSON(ctx, fmt.Sprintf("/users/%s/events/public?page=%d&per_page=100", url.PathEscape(login), page), &evs); err != nil {
 			return nil, err
 		}
 		all = append(all, evs...)

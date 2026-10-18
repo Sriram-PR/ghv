@@ -70,3 +70,12 @@ func TestEventsStopsAtThreePages(t *testing.T) {
 		t.Fatalf("%d events in %d requests, %v", len(evs), len(f.reqs), err)
 	}
 }
+
+func TestEventsEscapesLogin(t *testing.T) {
+	f, c := newFake(map[string]reply{
+		"/users/a%2Fb%3Fx/events/public?page=1&per_page=100": {status: 200, body: `[]`},
+	})
+	if _, err := c.Events(context.Background(), "a/b?x"); err != nil || len(f.reqs) != 1 {
+		t.Fatalf("%d requests, %v", len(f.reqs), err)
+	}
+}

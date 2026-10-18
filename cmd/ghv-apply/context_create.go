@@ -41,13 +41,19 @@ func buildFile(name string) bool {
 		slices.ContainsFunc(buildExts, func(e string) bool { return strings.HasSuffix(base, e) })
 }
 
+// headOf is where a pull request's head branch lives: its owner's
+// repository of the same name as the draft's.
+func headOf(draftRepo string, f draft.PRCreateFields) (owner, repo, branch string) {
+	owner, branch, _ = strings.Cut(f.Head, ":")
+	return owner, owner + "/" + path.Base(draftRepo), branch
+}
+
 func short(sha string) string { return sha[:min(12, len(sha))] }
 
 // createContext shows the code a pull request would propose. The head
 // lives in its owner's repository of the same name, as ghv drafted it.
 func (rv *reviewer) createContext(ctx context.Context, rc *reviewContext, repo fetch.Repo, draftRepo string, f draft.PRCreateFields) {
-	owner, branch, _ := strings.Cut(f.Head, ":")
-	headRepo := owner + "/" + path.Base(draftRepo)
+	owner, headRepo, branch := headOf(draftRepo, f)
 	rc.line("Pull request from %s at %s into %s:%s", f.Head, short(f.HeadSHA), repo.FullName, f.Base)
 	if !strings.EqualFold(owner, rv.login) {
 		rc.flag("the head branch belongs to %s, not you", owner)

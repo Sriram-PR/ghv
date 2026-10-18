@@ -19,11 +19,13 @@ type apiReply struct {
 	body   string
 }
 
-// fakeAPI answers by request URI, prefixed "diff " for a diff; anything
-// else is a 404.
+// fakeAPI answers by request URI, prefixed "diff " for a diff and with
+// the method for anything but a GET; anything else is a 404. bodies holds
+// what each write sent.
 type fakeAPI struct {
 	routes map[string]apiReply
 	reqs   []*http.Request
+	bodies []string
 }
 
 func (f *fakeAPI) RoundTrip(r *http.Request) (*http.Response, error) {
@@ -31,6 +33,11 @@ func (f *fakeAPI) RoundTrip(r *http.Request) (*http.Response, error) {
 	key := r.URL.RequestURI()
 	if r.Header.Get("Accept") == "application/vnd.github.diff" {
 		key = "diff " + key
+	}
+	if r.Method != http.MethodGet {
+		key = r.Method + " " + key
+		b, _ := io.ReadAll(r.Body)
+		f.bodies = append(f.bodies, string(b))
 	}
 	rp, ok := f.routes[key]
 	if !ok {

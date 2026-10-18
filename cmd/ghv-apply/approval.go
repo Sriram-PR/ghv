@@ -63,18 +63,23 @@ func renderVerdict(v verdict) []string {
 type action byte
 
 const (
-	actReject action = 'r'
-	actSkip   action = 's'
-	actDiff   action = 'd'
-	actQuit   action = 'q'
+	actApprove action = 'a'
+	actReject  action = 'r'
+	actSkip    action = 's'
+	actDiff    action = 'd'
+	actQuit    action = 'q'
 )
 
-var actionWords = map[action]string{actReject: "reject", actSkip: "skip", actDiff: "diff", actQuit: "quit"}
+var actionWords = map[action]string{actApprove: "approve", actReject: "reject", actSkip: "skip", actDiff: "diff", actQuit: "quit"}
 
-// offered lists the answers for one draft; [d]iff only when there is a
-// diff to page.
-func offered(hasDiff bool) []action {
-	as := []action{actReject, actSkip}
+// offered lists the answers for one draft: [a]pprove only when nothing
+// blocks sending it, [d]iff only when there is a diff to page.
+func offered(canSend, hasDiff bool) []action {
+	var as []action
+	if canSend {
+		as = append(as, actApprove)
+	}
+	as = append(as, actReject, actSkip)
 	if hasDiff {
 		as = append(as, actDiff)
 	}

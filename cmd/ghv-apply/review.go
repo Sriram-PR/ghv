@@ -24,6 +24,27 @@ type item struct {
 	err    error
 }
 
+// tally is what became of one draft in a session.
+type tally int
+
+const (
+	left tally = iota
+	rejected
+	sent
+	unsure // sent, with no answer from GitHub to say what happened
+)
+
+// session is one review: the terminal, the queue, the context gatherer,
+// and the unlocked write token.
+type session struct {
+	e      env
+	tty    terminal
+	q      draft.Queue
+	rv     *reviewer
+	tok    []byte
+	counts [4]int
+}
+
 // runReview shows each pending draft, oldest first, with its live context
 // and verdict, and takes the reviewer's answer from the terminal.
 func runReview(ctx context.Context, e env) error {
@@ -55,26 +76,22 @@ func runReview(ctx context.Context, e env) error {
 			return err
 		}
 		defer s.Zero()
-		rv := &reviewer{fc: fetch.New(e.client), login: s.Login, now: e.now()}
-		rejected, left := 0, 0
-	drafts:
+		ss := &session{e: e, tty: tty, q: q, tok: s.Token,
+			rv: &reviewer{fc: fetch.New(e.client), login: s.Login, now: e.now()}}
 		for i, it := range items {
 			tty.Printf("\n== Draft %d of %d ==\n", i+1, len(items))
-			act, err := reviewOne(ctx, e, tty, q, rv, it)
+			t, stop, err := ss.reviewOne(ctx, it)
 			if err != nil {
 				return err
 			}
-			switch act {
-			case actReject:
-				rejected++
-			case actSkip:
-				left++
-			case actQuit:
-				left += len(items) - i
-				break drafts
+			ss.counts[t]++
+			if stop {
+				ss.counts[left] += len(items) - i - 1
+				break
 			}
 		}
-		tty.Printf("\nRejected %d, left %d in the queue.\n", rejected, left)
+		tty.Printf("\nSent %d, rejected %d, left %d in the queue.\n", ss.counts[sent], ss.counts[rejected], ss.counts[left])
+		unknown += ss.counts[unsure]
 	}
 	if unknown > 0 {
 		tty.Printf("%s for its result to be checked, which this ghv-apply cannot do yet.\n",
@@ -137,15 +154,19 @@ func pending(q draft.Queue) ([]item, int, error) {
 	return items, unknown, nil
 }
 
-func reviewOne(ctx context.Context, e env, tty terminal, q draft.Queue, rv *reviewer, it item) (action, error) {
+// reviewOne shows a draft and acts on the answer. stop ends the session.
+func (ss *session) reviewOne(ctx context.Context, it item) (t tally, stop bool, err error) {
+	tty := ss.tty
 	var diff func(context.Context) (string, error)
+	var req *write.Request
+	var rc reviewContext
+	canSend := false
 	if it.err != nil {
 		tty.Printf("Draft %s cannot be read: %s\n", it.id, sanitize.Line(it.err.Error()))
 		tty.Printf("ghv-apply will not send it; reject it to clear it from the queue.\n")
 	} else {
 		rep := sanitize.CheckDraft(it.loaded.Draft)
-		rc := rv.context(ctx, it.loaded.Draft)
-		var req *write.Request
+		rc = ss.rv.context(ctx, it.loaded.Draft)
 		if rc.FullName != "" {
 			if r, err := write.Build(it.loaded.Draft, rc.FullName); err != nil {
 				rc.block("cannot build the request: %v", err)
@@ -160,18 +181,20 @@ func reviewOne(ctx context.Context, e env, tty terminal, q draft.Queue, rv *revi
 		lines = append(lines, "")
 		lines = append(lines, renderDraft(it.loaded, rep, req)...)
 		if err := page(tty, lines); err != nil {
-			return 0, err
+			return left, false, err
 		}
-		for _, l := range renderVerdict(judge(rep, rc)) {
+		v := judge(rep, rc)
+		for _, l := range renderVerdict(v) {
 			tty.Printf("%s\n", l)
 		}
 		diff = rc.Diff
+		canSend = req != nil && len(v.Blocks) == 0
 	}
-	as := offered(diff != nil)
+	as := offered(canSend, diff != nil)
 	for {
 		ans, err := tty.ReadLine(prompt(as))
 		if err != nil {
-			return 0, err
+			return left, false, err
 		}
 		act, ok := parseAction(ans, as)
 		if !ok {
@@ -179,28 +202,33 @@ func reviewOne(ctx context.Context, e env, tty terminal, q draft.Queue, rv *revi
 			continue
 		}
 		switch act {
+		case actApprove:
+			t, stop := ss.send(ctx, it, rc.FullName, *req)
+			return t, stop, nil
 		case actDiff:
 			if err := showDiff(ctx, tty, diff); err != nil {
-				return 0, err
+				return left, false, err
 			}
 			continue
 		case actReject:
 			reason, err := tty.ReadLine("Reason, for the agent to read (Enter for none): ")
 			if err != nil {
-				return 0, err
+				return left, false, err
 			}
 			if reason = strings.TrimSpace(reason); reason == "" {
 				reason = "rejected in review"
 			}
-			if err := q.Move(it.id, draft.Pending, draft.Rejected, it.loaded.SHA256, draft.Outcome{At: e.now().UTC(), Reason: reason}); err != nil {
+			if err := ss.q.Move(it.id, draft.Pending, draft.Rejected, it.loaded.SHA256, draft.Outcome{At: ss.e.now().UTC(), Reason: reason}); err != nil {
 				tty.Printf("%s\n", sanitize.Line(fmt.Sprintf("Cannot reject %s: %v", it.id, err)))
-				return actSkip, nil
+				return left, false, nil
 			}
 			tty.Printf("Rejected %s.\n", it.id)
+			return rejected, false, nil
 		case actSkip:
 			tty.Printf("Left %s in the queue.\n", it.id)
+			return left, false, nil
 		}
-		return act, nil
+		return left, true, nil
 	}
 }
 

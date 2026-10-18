@@ -41,9 +41,10 @@ func TestRenderVerdict(t *testing.T) {
 }
 
 func TestActions(t *testing.T) {
-	plain, withDiff := offered(false), offered(true)
-	if prompt(plain) != "[r]eject, [s]kip, or [q]uit? " || prompt(withDiff) != "[r]eject, [s]kip, [d]iff, or [q]uit? " {
-		t.Fatalf("prompts %q, %q", prompt(plain), prompt(withDiff))
+	plain, withDiff, all := offered(false, false), offered(false, true), offered(true, true)
+	if prompt(plain) != "[r]eject, [s]kip, or [q]uit? " || prompt(withDiff) != "[r]eject, [s]kip, [d]iff, or [q]uit? " ||
+		prompt(all) != "[a]pprove, [r]eject, [s]kip, [d]iff, or [q]uit? " {
+		t.Fatalf("prompts %q, %q, %q", prompt(plain), prompt(withDiff), prompt(all))
 	}
 	for _, tt := range []struct {
 		answer string
@@ -60,6 +61,8 @@ func TestActions(t *testing.T) {
 		{"", plain, 0, false},
 		{"y", plain, 0, false},
 		{"a", plain, 0, false},
+		{"a", all, actApprove, true},
+		{"Approve", all, actApprove, true},
 		{"rs", plain, 0, false},
 	} {
 		got, ok := parseAction(tt.answer, tt.as)

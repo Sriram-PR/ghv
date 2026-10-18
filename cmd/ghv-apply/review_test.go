@@ -78,11 +78,11 @@ func TestReviewRejectAndSkip(t *testing.T) {
 		"  Comment on issue #7: Crash (open), opened by u",
 		"Draft " + first + ": comment to o/r",
 		"\nRequest: POST https://api.github.com/repos/o/r/issues/7/comments\n  body: (shown above, 1 line, 5 characters)\n  request SHA-256 ",
-		"-- end of " + first + ": body 1 line, 5 characters --\nCheck before deciding:\n  - you have not taken part in o/r before\n  - findings to read: mention 1\n[r]eject, [s]kip, or [q]uit? \nAnswer with one of the letters in brackets.\n",
+		"-- end of " + first + ": body 1 line, 5 characters --\nCheck before deciding:\n  - you have not taken part in o/r before\n  - findings to read: mention 1\n[a]pprove, [r]eject, [s]kip, or [q]uit? \nAnswer with one of the letters in brackets.\n",
 		"Reason, for the agent to read (Enter for none): \nRejected " + first + ".",
 		"== Draft 2 of 2 ==",
 		"Left " + later + " in the queue.",
-		"Rejected 1, left 1 in the queue.",
+		"Sent 0, rejected 1, left 1 in the queue.",
 	} {
 		if !strings.Contains(shown, s) {
 			t.Errorf("terminal lacks %q:\n%s", s, shown)
@@ -116,7 +116,7 @@ func TestReviewQuit(t *testing.T) {
 	e, _ := reviewEnv(t, ft, baseRoutes())
 	a := queueDraft(t, e.home, draft.Draft{Repo: "o/r", CreatedAt: at(9), Fields: draft.IssueCreateFields{Title: "A", Body: ""}})
 	b := queueDraft(t, e.home, draft.Draft{Repo: "o/r", CreatedAt: at(10), Fields: draft.IssueCreateFields{Title: "B", Body: ""}})
-	if r := runWith(e); r.code != 0 || !strings.Contains(ft.shown(), "Rejected 0, left 2 in the queue.") {
+	if r := runWith(e); r.code != 0 || !strings.Contains(ft.shown(), "Sent 0, rejected 0, left 2 in the queue.") {
 		t.Fatalf("exit %d, stderr %q, terminal:\n%s", r.code, r.stderr, ft.shown())
 	}
 	st := states(t, e.home)
@@ -135,7 +135,7 @@ func TestReviewDiff(t *testing.T) {
 	if r := runWith(e); r.code != 0 {
 		t.Fatalf("exit %d, stderr %q, terminal:\n%s", r.code, r.stderr, ft.shown())
 	}
-	if !strings.Contains(ft.shown(), "[r]eject, [s]kip, [d]iff, or [q]uit? \ndiff --git a/x b/x\n+<U+001B>[31mred\n-- end of the diff: 2 lines --\n[r]eject, [s]kip, [d]iff, or [q]uit? \n") {
+	if !strings.Contains(ft.shown(), "[a]pprove, [r]eject, [s]kip, [d]iff, or [q]uit? \ndiff --git a/x b/x\n+<U+001B>[31mred\n-- end of the diff: 2 lines --\n[a]pprove, [r]eject, [s]kip, [d]iff, or [q]uit? \n") {
 		t.Fatalf("terminal:\n%s", ft.shown())
 	}
 }
@@ -212,7 +212,7 @@ func TestReviewRejectsOnlyTheDraftShown(t *testing.T) {
 	if r := runWith(e); r.code != 0 {
 		t.Fatalf("exit %d, stderr %q, terminal:\n%s", r.code, r.stderr, ft.shown())
 	}
-	if !strings.Contains(ft.shown(), "Cannot reject "+id+": draft "+id+": the draft file changed after ghv-apply read it\n\nRejected 0, left 1 in the queue.") {
+	if !strings.Contains(ft.shown(), "Cannot reject "+id+": draft "+id+": the draft file changed after ghv-apply read it\n\nSent 0, rejected 0, left 1 in the queue.") {
 		t.Fatalf("terminal:\n%s", ft.shown())
 	}
 	if st := states(t, e.home); st[id].State != draft.Pending {

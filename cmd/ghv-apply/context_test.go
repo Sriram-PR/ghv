@@ -131,6 +131,12 @@ func TestContextRename(t *testing.T) {
 	routes["/repositories/7691631"] = ok(`{"full_name":"o/r","created_at":"2019-01-02T00:00:00Z","owner":{"login":"o","type":"Organization"}}`)
 	rc := contextOf(t, routes, issueDraft("docker/docker"))
 	has(t, "flags", rc.Flags, "GitHub knows docker/docker as o/r (renamed or transferred); ghv-apply sends to o/r")
+	if rc.FullName != "o/r" {
+		t.Fatalf("FullName %q", rc.FullName)
+	}
+	if rc = contextOf(t, map[string]apiReply{}, issueDraft("docker/docker")); rc.FullName != "" {
+		t.Fatalf("FullName %q without a repository", rc.FullName)
+	}
 }
 
 func TestContextLookalike(t *testing.T) {

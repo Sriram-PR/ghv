@@ -10,6 +10,7 @@ import (
 
 	"github.com/Sriram-PR/ghv/internal/draft"
 	"github.com/Sriram-PR/ghv/internal/sanitize"
+	"github.com/Sriram-PR/ghv/internal/write"
 )
 
 func loaded(d draft.Draft) draft.Loaded {
@@ -22,7 +23,7 @@ func TestRenderComment(t *testing.T) {
 	// U+202E, a right-to-left override, as bytes.
 	body := "Thanks @someone!\n\tSee https://example.com/x\nok \xe2\x80\xae"
 	l := loaded(draft.Draft{Repo: "o/r", Fields: draft.CommentFields{Number: 7, Body: body}})
-	got := renderDraft(l, sanitize.CheckDraft(l.Draft))
+	got := renderDraft(l, sanitize.CheckDraft(l.Draft), nil)
 	want := []string{
 		"Draft d-0123456789ab: comment to o/r",
 		fmt.Sprintf("Created 2026-10-16 05:05 UTC; file SHA-256 %x", sha256.Sum256([]byte("raw"))),
@@ -64,7 +65,7 @@ func TestRenderEveryKind(t *testing.T) {
 			"title (3 characters): Bug", "body (2 lines, 3 characters):", "    a", "    b", "-- end of d-0123456789ab: title 3 characters; body 2 lines, 3 characters --"}},
 	} {
 		l := loaded(tt.d)
-		got := strings.Join(renderDraft(l, sanitize.CheckDraft(l.Draft)), "\n")
+		got := strings.Join(renderDraft(l, sanitize.CheckDraft(l.Draft), nil), "\n")
 		for _, w := range tt.want {
 			if !strings.Contains(got, w) {
 				t.Errorf("%s lacks %q:\n%s", tt.d.Kind(), w, got)
@@ -107,5 +108,46 @@ func TestPageFitsOrNoHeight(t *testing.T) {
 	ft.height = 10
 	if err := page(ft, numbered(19)); err != nil || !strings.HasSuffix(ft.shown(), "line 18\n-- line 18 of 19: Enter for more, q to skip to the end -- \nline 19\n") {
 		t.Fatalf("%v, shown %q", err, ft.shown())
+	}
+}
+
+func TestRenderRequest(t *testing.T) {
+	body := "a\nb"
+	for _, tt := range []struct {
+		d    draft.Draft
+		want []string
+	}{
+		{draft.Draft{Repo: "o/r", Fields: draft.PRCreateFields{Base: "main", Head: "me:fix/x", HeadSHA: headSHA, Title: "Fix x", Body: "", Draft: true}}, []string{
+			"Request: POST https://api.github.com/repos/moby/moby/pulls",
+			"  title: (shown above, 5 characters)",
+			`  head: "me:fix/x"`,
+			`  base: "main"`,
+			"  body: (empty)",
+			"  draft: true",
+			"  maintainer_can_modify: false",
+		}},
+		{draft.Draft{Repo: "o/r", Fields: draft.ForkFields{}}, []string{
+			"Request: POST https://api.github.com/repos/moby/moby/forks",
+			"  (no fields)",
+		}},
+		{draft.Draft{Repo: "o/r", Fields: draft.PREditFields{Number: 8, Body: &body}}, []string{
+			"Request: PATCH https://api.github.com/repos/moby/moby/pulls/8",
+			"  body: (shown above, 2 lines, 3 characters)",
+		}},
+	} {
+		l := loaded(tt.d)
+		req, err := write.Build(l.Draft, "moby/moby")
+		if err != nil {
+			t.Fatal(err)
+		}
+		got := renderDraft(l, sanitize.CheckDraft(l.Draft), &req)
+		want := append([]string{""}, tt.want...)
+		want = append(want, fmt.Sprintf("  request SHA-256 %x", req.SHA256()))
+		if end := got[len(got)-1]; !strings.HasPrefix(end, "-- end of ") {
+			t.Fatalf("the end marker is not last: %q", end)
+		}
+		if tail := got[len(got)-1-len(want) : len(got)-1]; !slices.Equal(tail, want) {
+			t.Errorf("%s request:\n%s\nwant:\n%s", tt.d.Kind(), strings.Join(tail, "\n"), strings.Join(want, "\n"))
+		}
 	}
 }

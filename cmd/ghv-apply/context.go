@@ -21,9 +21,12 @@ const youngAge = 30 * 24 * time.Hour
 // Every string is safe to print. Flags are for the reviewer to weigh;
 // Blocks say why the draft cannot be sent.
 type reviewContext struct {
-	Lines  []string
-	Flags  []string
-	Blocks []string
+	// FullName is the repository's name as GitHub gives it, where the
+	// request goes; empty when GitHub could not be asked.
+	FullName string
+	Lines    []string
+	Flags    []string
+	Blocks   []string
 	// Diff fetches a pr.create's full diff; nil for other kinds.
 	Diff func(context.Context) (string, error)
 }
@@ -64,6 +67,7 @@ func (rv *reviewer) context(ctx context.Context, d draft.Draft) reviewContext {
 	if !ok {
 		return rc
 	}
+	rc.FullName = repo.FullName
 	switch f := d.Fields.(type) {
 	case draft.CommentFields:
 		rv.commentContext(ctx, &rc, repo, f)

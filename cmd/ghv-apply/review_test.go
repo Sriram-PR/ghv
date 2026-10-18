@@ -77,6 +77,7 @@ func TestReviewRejectAndSkip(t *testing.T) {
 		"== Draft 1 of 2 ==\nContext from GitHub:\n  Repository: o/r, created 2019-01-02, 7 years ago",
 		"  Comment on issue #7: Crash (open), opened by u",
 		"Draft " + first + ": comment to o/r",
+		"\nRequest: POST https://api.github.com/repos/o/r/issues/7/comments\n  body: (shown above, 1 line, 5 characters)\n  request SHA-256 ",
 		"-- end of " + first + ": body 1 line, 5 characters --\nCheck before deciding:\n  - you have not taken part in o/r before\n  - findings to read: mention 1\n[r]eject, [s]kip, or [q]uit? \nAnswer with one of the letters in brackets.\n",
 		"Reason, for the agent to read (Enter for none): \nRejected " + first + ".",
 		"== Draft 2 of 2 ==",

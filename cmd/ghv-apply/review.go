@@ -145,12 +145,20 @@ func reviewOne(ctx context.Context, e env, tty terminal, q draft.Queue, rv *revi
 	} else {
 		rep := sanitize.CheckDraft(it.loaded.Draft)
 		rc := rv.context(ctx, it.loaded.Draft)
+		var req *write.Request
+		if rc.FullName != "" {
+			if r, err := write.Build(it.loaded.Draft, rc.FullName); err != nil {
+				rc.block("cannot build the request: %v", err)
+			} else {
+				req = &r
+			}
+		}
 		lines := []string{"Context from GitHub:"}
 		for _, l := range rc.Lines {
 			lines = append(lines, "  "+l)
 		}
 		lines = append(lines, "")
-		lines = append(lines, renderDraft(it.loaded, rep)...)
+		lines = append(lines, renderDraft(it.loaded, rep, req)...)
 		if err := page(tty, lines); err != nil {
 			return 0, err
 		}

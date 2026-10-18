@@ -59,8 +59,7 @@ func main() {
 
 func run(ctx context.Context, args []string, e env) int {
 	if len(args) == 0 {
-		fmt.Fprint(e.stderr, usage())
-		return 2
+		return report(e, runReview(ctx, e))
 	}
 	switch args[0] {
 	case "-h", "--help", "help":
@@ -75,19 +74,23 @@ func run(ctx context.Context, args []string, e env) int {
 			fmt.Fprintf(e.stderr, "ghv-apply: %s takes no arguments\n", c.name)
 			return 2
 		}
-		if err := c.run(ctx, e); err != nil {
-			fmt.Fprintf(e.stderr, "ghv-apply: %s\n", sanitize.Line(err.Error()))
-			return 1
-		}
-		return 0
+		return report(e, c.run(ctx, e))
 	}
 	fmt.Fprintf(e.stderr, "ghv-apply: unknown command %q; run ghv-apply --help\n", sanitize.Line(args[0]))
 	return 2
 }
 
+func report(e env, err error) int {
+	if err != nil {
+		fmt.Fprintf(e.stderr, "ghv-apply: %s\n", sanitize.Line(err.Error()))
+		return 1
+	}
+	return 0
+}
+
 func usage() string {
 	var b strings.Builder
-	b.WriteString("Usage: ghv-apply <command>\n\nCommands:\n")
+	b.WriteString("Usage: ghv-apply [command]\n\nWith no command, review the drafts in the queue.\n\nCommands:\n")
 	width := 0
 	for _, c := range commands {
 		width = max(width, len(c.name))

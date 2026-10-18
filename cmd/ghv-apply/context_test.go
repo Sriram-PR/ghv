@@ -19,7 +19,8 @@ type apiReply struct {
 	body   string
 }
 
-// fakeAPI answers by request URI; anything else is a 404.
+// fakeAPI answers by request URI, prefixed "diff " for a diff; anything
+// else is a 404.
 type fakeAPI struct {
 	routes map[string]apiReply
 	reqs   []*http.Request
@@ -27,7 +28,11 @@ type fakeAPI struct {
 
 func (f *fakeAPI) RoundTrip(r *http.Request) (*http.Response, error) {
 	f.reqs = append(f.reqs, r)
-	rp, ok := f.routes[r.URL.RequestURI()]
+	key := r.URL.RequestURI()
+	if r.Header.Get("Accept") == "application/vnd.github.diff" {
+		key = "diff " + key
+	}
+	rp, ok := f.routes[key]
 	if !ok {
 		rp = apiReply{status: 404, body: `{"message":"Not Found"}`}
 	}

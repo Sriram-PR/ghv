@@ -48,13 +48,13 @@ func TestUsage(t *testing.T) {
 	e := testEnv(t)
 	for _, arg := range []string{"-h", "--help", "help"} {
 		r := runWith(e, arg)
-		if r.code != 0 || !strings.HasPrefix(r.stdout, "Usage: ghv-apply <command>\n") ||
+		if r.code != 0 || !strings.HasPrefix(r.stdout, "Usage: ghv-apply [command]\n\nWith no command, review the drafts in the queue.\n") ||
 			!strings.Contains(r.stdout, "\n  zz-test  a test command\n") || r.stderr != "" {
 			t.Fatalf("%s: exit %d, stdout %q, stderr %q", arg, r.code, r.stdout, r.stderr)
 		}
 	}
-	if r := runWith(e); r.code != 2 || r.stdout != "" || !strings.HasPrefix(r.stderr, "Usage: ghv-apply") {
-		t.Fatalf("no arguments: exit %d, stdout %q, stderr %q", r.code, r.stdout, r.stderr)
+	if r := runWith(e); r.code != 1 || r.stdout != "" || r.stderr != "ghv-apply: no terminal in this test\n" {
+		t.Fatalf("no arguments reviews the queue: exit %d, stdout %q, stderr %q", r.code, r.stdout, r.stderr)
 	}
 	if r := runWith(e, "nope"); r.code != 2 || r.stderr != "ghv-apply: unknown command \"nope\"; run ghv-apply --help\n" {
 		t.Fatalf("unknown: exit %d, stderr %q", r.code, r.stderr)

@@ -26,11 +26,11 @@ func Validate(d Draft) error {
 	case ForkFields:
 		return nil
 	case PRCreateFields:
-		if !validBranch(f.Base) {
+		if !ValidBranch(f.Base) {
 			return invalid("base %q is not a valid branch name", f.Base)
 		}
 		owner, branch, ok := strings.Cut(f.Head, ":")
-		if !ok || !ownerRE.MatchString(owner) || !validBranch(branch) {
+		if !ok || !ownerRE.MatchString(owner) || !ValidBranch(branch) {
 			return invalid("head %q is not OWNER:BRANCH", f.Head)
 		}
 		if !shaRE.MatchString(f.HeadSHA) {
@@ -75,9 +75,9 @@ func checkTitle(t string) error {
 	return nil
 }
 
-// validBranch follows git check-ref-format. Non-ASCII is allowed here;
+// ValidBranch follows git check-ref-format. Non-ASCII is allowed here;
 // internal/sanitize flags it in review.
-func validBranch(s string) bool {
+func ValidBranch(s string) bool {
 	if s == "" || len(s) > 255 || s == "@" || !utf8.ValidString(s) {
 		return false
 	}

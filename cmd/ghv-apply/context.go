@@ -67,6 +67,10 @@ func (rv *reviewer) context(ctx context.Context, d draft.Draft) reviewContext {
 	switch f := d.Fields.(type) {
 	case draft.CommentFields:
 		rv.commentContext(ctx, &rc, repo, f)
+	case draft.ReviewReplyFields:
+		rv.replyContext(ctx, &rc, repo, f)
+	case draft.PREditFields:
+		rv.editContext(ctx, &rc, repo, f)
 	case draft.ForkFields:
 		rv.forkContext(ctx, &rc, repo)
 	}

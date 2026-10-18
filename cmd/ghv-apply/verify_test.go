@@ -91,3 +91,15 @@ func TestLogVerifyWrongPassphrase(t *testing.T) {
 		t.Fatalf("exit %d, stderr %q, %d requests", r.code, r.stderr, len(f.reqs))
 	}
 }
+
+func TestLogVerifySanitizesOtherEvents(t *testing.T) {
+	routes := baseRoutes()
+	routes[eventsRoute] = ok(`[{"type":"Evil\u001b]52;c;x\u0007Event","repo":{"name":"o/r"},"created_at":"2026-10-18T11:10:00Z",
+		"payload":{"action":"st\u001b[2Jarted"}}]`)
+	e, _ := reviewEnv(t, answers(t, oldPass), routes)
+	r := runWith(e, "log", "--verify")
+	if r.code != 0 || strings.ContainsRune(r.stdout, '\x1b') || strings.ContainsRune(r.stdout, '\a') ||
+		!strings.Contains(r.stdout, "Evil<U+001B>]52;c;x<U+0007>Event/st<U+001B>[2Jarted 1.") {
+		t.Fatalf("exit %d, stderr %q, stdout %q", r.code, r.stderr, r.stdout)
+	}
+}

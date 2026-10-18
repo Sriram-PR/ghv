@@ -9,6 +9,7 @@ import (
 
 	"github.com/Sriram-PR/ghv/internal/audit"
 	"github.com/Sriram-PR/ghv/internal/fetch"
+	"github.com/Sriram-PR/ghv/internal/sanitize"
 	"github.com/Sriram-PR/ghv/internal/vault"
 )
 
@@ -163,7 +164,7 @@ func verify(ctx context.Context, e env, es []audit.Entry) error {
 		})
 		parts := make([]string, len(keys))
 		for i, k := range keys {
-			parts[i] = fmt.Sprintf("%s %d", k, other[k])
+			parts[i] = fmt.Sprintf("%s %d", sanitize.Line(k), other[k])
 		}
 		fmt.Fprintf(e.stdout, "\nOther events, of kinds ghv-apply does not make: %s.\n", strings.Join(parts, ", "))
 	}

@@ -83,7 +83,7 @@ func runReview(ctx context.Context, e env) error {
 			s.Zero()
 			tty.Printf("\nNo answer for 5 minutes: the session ended, and the write token was cleared from memory.\n")
 			e.exit(1)
-		}}, q: q, tok: s.Token, watch: watch,
+		}, &idleGate{}}, q: q, tok: s.Token, watch: watch,
 			rv: &reviewer{fc: fetch.New(withTransport(e.client, watch)), login: s.Login, now: e.now()}}
 		for i, it := range items {
 			tty.Printf("\n== Draft %d of %d ==\n", i+1, len(items))

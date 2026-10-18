@@ -308,3 +308,21 @@ func TestReviewIdle(t *testing.T) {
 		t.Fatalf("%+v", st)
 	}
 }
+
+// The timer fires just as the answer arrives: the answer wins, and the
+// late timer neither clears the token nor ends the session.
+func TestReviewIdleTimerLosesToAnAnswer(t *testing.T) {
+	ft := answers(t, oldPass, "s")
+	e, _ := reviewEnv(t, ft, baseRoutes())
+	e.afterFunc = func(d time.Duration, f func()) func() bool {
+		return func() bool { f(); return false }
+	}
+	e.exit = func(c int) { t.Fatalf("exit %d after the answer arrived", c) }
+	id := queueDraft(t, e.home, draft.Draft{Repo: "o/r", CreatedAt: at(9), Fields: draft.IssueCreateFields{Title: "A", Body: ""}})
+	if r := runWith(e); r.code != 0 {
+		t.Fatalf("exit %d, stderr %q", r.code, r.stderr)
+	}
+	if strings.Contains(ft.shown(), "No answer for 5 minutes") || !strings.Contains(ft.shown(), "Left "+id+" in the queue.") {
+		t.Fatalf("terminal:\n%s", ft.shown())
+	}
+}

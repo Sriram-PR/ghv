@@ -6,6 +6,7 @@ import (
 	"os"
 	"os/signal"
 	"strings"
+	"sync"
 	"syscall"
 	"time"
 
@@ -108,15 +109,40 @@ func (t devTTY) ReadLine(prompt string) (string, error) {
 const idleLimit = 5 * time.Minute
 
 // idleTerm calls onIdle when a prompt waits past idleLimit. onIdle runs on
-// the timer's goroutine while the prompt still waits.
+// the timer's goroutine while the prompt still waits, holding the lock, so
+// an answer that arrives meanwhile goes no further.
 type idleTerm struct {
 	terminal
 	after  func(time.Duration, func()) (stop func() bool)
 	onIdle func()
+	gate   *idleGate
+}
+
+// idleGate numbers the prompts: a timer fires for its own prompt only, so
+// one that fires as its answer arrives does nothing.
+type idleGate struct {
+	mu     sync.Mutex
+	prompt int
+}
+
+func (g *idleGate) next() int {
+	g.mu.Lock()
+	defer g.mu.Unlock()
+	g.prompt++
+	return g.prompt
 }
 
 func (t idleTerm) ReadLine(prompt string) (string, error) {
-	stop := t.after(idleLimit, t.onIdle)
-	defer stop()
-	return t.terminal.ReadLine(prompt)
+	n := t.gate.next()
+	stop := t.after(idleLimit, func() {
+		t.gate.mu.Lock()
+		defer t.gate.mu.Unlock()
+		if t.gate.prompt == n {
+			t.onIdle()
+		}
+	})
+	line, err := t.terminal.ReadLine(prompt)
+	t.gate.next()
+	stop()
+	return line, err
 }

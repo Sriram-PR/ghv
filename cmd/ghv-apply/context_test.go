@@ -61,6 +61,7 @@ var reviewNow = time.Date(2026, 10, 18, 12, 0, 0, 0, time.UTC)
 // user has never taken part in, and a user who owns Sriram-PR/ghv.
 func baseRoutes() map[string]apiReply {
 	return map[string]apiReply{
+		"/user":      {status: 200, header: http.Header{"X-Oauth-Scopes": {"public_repo"}}, body: `{"login":"Sriram-PR"}`},
 		"/repos/o/r": ok(`{"full_name":"o/r","created_at":"2019-01-02T00:00:00Z","owner":{"login":"o","type":"Organization"}}`),
 		"/users/o":   ok(`{"login":"o","type":"Organization","created_at":"2015-03-04T00:00:00Z"}`),
 		"/search/issues?q=repo%3Ao%2Fr+involves%3ASriram-PR&per_page=1": ok(`{"total_count":0}`),

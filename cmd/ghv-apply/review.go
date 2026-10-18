@@ -11,6 +11,7 @@ import (
 	"github.com/Sriram-PR/ghv/internal/fetch"
 	"github.com/Sriram-PR/ghv/internal/sanitize"
 	"github.com/Sriram-PR/ghv/internal/vault"
+	"github.com/Sriram-PR/ghv/internal/write"
 )
 
 // queueRoot is where ghv writes drafts, under the passwd home (§6.3).
@@ -35,10 +36,6 @@ func runReview(ctx context.Context, e env) error {
 	if err != nil {
 		return err
 	}
-	login, err := vault.Login(data)
-	if err != nil {
-		return err
-	}
 	q := draft.Queue{Root: queueRoot(e.home)}
 	lock, err := q.Lock()
 	if err != nil {
@@ -53,7 +50,12 @@ func runReview(ctx context.Context, e env) error {
 		tty.Printf("No drafts wait for review.\n")
 	} else {
 		tty.Printf("%s for review.\n", plural(len(items), "draft waits", "drafts wait"))
-		rv := &reviewer{fc: fetch.New(e.client), login: login, now: e.now()}
+		s, err := unlock(ctx, e, tty, data)
+		if err != nil {
+			return err
+		}
+		defer s.Zero()
+		rv := &reviewer{fc: fetch.New(e.client), login: s.Login, now: e.now()}
 		rejected, left := 0, 0
 	drafts:
 		for i, it := range items {
@@ -79,6 +81,31 @@ func runReview(ctx context.Context, e env) error {
 			plural(unknown, "draft in unknown/ waits", "drafts in unknown/ wait"))
 	}
 	return nil
+}
+
+// unlock opens the vault and checks that GitHub still says the write
+// token is the pinned login's, before any draft is shown. The login is in
+// the vault's authenticated header, so it is the one init recorded.
+func unlock(ctx context.Context, e env, tty terminal, data []byte) (vault.Secret, error) {
+	pass, err := tty.ReadSecret("Passphrase: ")
+	if err != nil {
+		return vault.Secret{}, err
+	}
+	s, err := vault.Open(data, pass)
+	clear(pass)
+	if err != nil {
+		return vault.Secret{}, err
+	}
+	id, err := write.Whoami(ctx, e.client, s.Token)
+	if err == nil && !strings.EqualFold(id.Login, s.Login) {
+		err = fmt.Errorf("the write token belongs to %s, but the vault is pinned to %s; ghv-apply sends nothing", id.Login, s.Login)
+	}
+	if err != nil {
+		s.Zero()
+		return vault.Secret{}, fmt.Errorf("checking the write token: %w", err)
+	}
+	warnExpiry(e, s)
+	return s, nil
 }
 
 // pending reads every pending draft once; unreadable ones sort last.

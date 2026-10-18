@@ -1,6 +1,7 @@
 package main
 
 import (
+	"net/http"
 	"os"
 	"path/filepath"
 	"strings"
@@ -62,7 +63,7 @@ func states(t *testing.T, home string) map[string]draft.Entry {
 func TestReviewRejectAndSkip(t *testing.T) {
 	routes := baseRoutes()
 	routes["/repos/o/r/issues/7"] = ok(`{"number":7,"title":"Crash","state":"open","user":{"login":"u"}}`)
-	ft := answers(t, "x", "r", "  not wanted ", "s")
+	ft := answers(t, oldPass, "x", "r", "  not wanted ", "s")
 	e, f := reviewEnv(t, ft, routes)
 	later := queueDraft(t, e.home, draft.Draft{Repo: "o/r", CreatedAt: at(10), Fields: draft.IssueCreateFields{Title: "Bug", Body: "b"}})
 	first := queueDraft(t, e.home, draft.Draft{Repo: "o/r", CreatedAt: at(9), Fields: draft.CommentFields{Number: 7, Body: "hi @u"}})
@@ -99,7 +100,10 @@ func TestReviewRejectAndSkip(t *testing.T) {
 	if st[later].State != draft.Pending {
 		t.Fatalf("later: %+v", st[later])
 	}
-	for _, r := range f.reqs {
+	if f.count("/user") != 1 || f.reqs[0].URL.Path != "/user" || f.reqs[0].Header.Get("Authorization") != "Bearer "+testToken {
+		t.Fatalf("the write token was not checked first")
+	}
+	for _, r := range f.reqs[1:] {
 		if r.Method != "GET" || r.Header.Get("Authorization") != "" || r.Header.Get("If-None-Match") != "" {
 			t.Fatalf("%s %s with headers %v", r.Method, r.URL, r.Header)
 		}
@@ -107,7 +111,7 @@ func TestReviewRejectAndSkip(t *testing.T) {
 }
 
 func TestReviewQuit(t *testing.T) {
-	ft := answers(t, "quit")
+	ft := answers(t, oldPass, "quit")
 	e, _ := reviewEnv(t, ft, baseRoutes())
 	a := queueDraft(t, e.home, draft.Draft{Repo: "o/r", CreatedAt: at(9), Fields: draft.IssueCreateFields{Title: "A", Body: ""}})
 	b := queueDraft(t, e.home, draft.Draft{Repo: "o/r", CreatedAt: at(10), Fields: draft.IssueCreateFields{Title: "B", Body: ""}})
@@ -123,7 +127,7 @@ func TestReviewQuit(t *testing.T) {
 func TestReviewDiff(t *testing.T) {
 	routes := createRoutes()
 	routes["diff "+compare] = ok("diff --git a/x b/x\n+\x1b[31mred\n")
-	ft := answers(t, "d", "s")
+	ft := answers(t, oldPass, "d", "s")
 	e, _ := reviewEnv(t, ft, routes)
 	queueDraft(t, e.home, draft.Draft{Repo: "o/r", CreatedAt: at(9), Fields: draft.PRCreateFields{
 		Base: "main", Head: "Sriram-PR:fix/x", HeadSHA: headSHA, Title: "Fix", Body: "b"}})
@@ -136,7 +140,7 @@ func TestReviewDiff(t *testing.T) {
 }
 
 func TestReviewUnreadableDraft(t *testing.T) {
-	ft := answers(t, "s", "r", "")
+	ft := answers(t, oldPass, "s", "r", "")
 	e, _ := reviewEnv(t, ft, baseRoutes())
 	good := queueDraft(t, e.home, draft.Draft{Repo: "o/r", CreatedAt: at(9), Fields: draft.IssueCreateFields{Title: "A", Body: ""}})
 	bad := "d-000000000000"
@@ -200,7 +204,7 @@ func TestReviewRejectsOnlyTheDraftShown(t *testing.T) {
 		}
 		return "r"
 	}
-	ft := answers(t, edit, "")
+	ft := answers(t, oldPass, edit, "")
 	e, _ := reviewEnv(t, ft, baseRoutes())
 	id := queueDraft(t, e.home, draft.Draft{Repo: "o/r", CreatedAt: at(9), Fields: draft.IssueCreateFields{Title: "A", Body: ""}})
 	path = filepath.Join(queueRoot(e.home), "queue", id+".json")
@@ -212,5 +216,55 @@ func TestReviewRejectsOnlyTheDraftShown(t *testing.T) {
 	}
 	if st := states(t, e.home); st[id].State != draft.Pending {
 		t.Fatalf("%+v", st)
+	}
+}
+
+func TestReviewUnlocks(t *testing.T) {
+	ft := answers(t, oldPass, "s")
+	e, _ := reviewEnv(t, ft, baseRoutes())
+	e.now = func() time.Time { return time.Date(2026, 11, 25, 12, 0, 0, 0, time.UTC) }
+	queueDraft(t, e.home, draft.Draft{Repo: "o/r", CreatedAt: at(9), Fields: draft.IssueCreateFields{Title: "A", Body: ""}})
+	r := runWith(e)
+	if r.code != 0 || r.stderr != "ghv-apply: warning: the write token expires on 2026-12-01, in 5 days; replace it with ghv-apply rotate\n" {
+		t.Fatalf("exit %d, stderr %q, terminal:\n%s", r.code, r.stderr, ft.shown())
+	}
+	if !strings.HasPrefix(ft.shown(), "1 draft waits for review.\nPassphrase: \n\n== Draft 1 of 1 ==") {
+		t.Fatalf("terminal:\n%s", ft.shown())
+	}
+	if p := ft.secrets[0]; strings.Trim(string(p), "\x00") != "" {
+		t.Fatalf("the passphrase was not cleared: %q", p)
+	}
+}
+
+func TestReviewRefusesToUnlock(t *testing.T) {
+	for _, c := range []struct {
+		name, pass string
+		user       apiReply
+		want       string
+	}{
+		{"wrong passphrase", "not the passphrase at all", apiReply{}, "ghv-apply: wrong passphrase, or the vault was changed\n"},
+		{"another login", oldPass, apiReply{status: 200, header: http.Header{"X-Oauth-Scopes": {"public_repo"}}, body: `{"login":"someone-else"}`},
+			"ghv-apply: checking the write token: the write token belongs to someone-else, but the vault is pinned to Sriram-PR; ghv-apply sends nothing\n"},
+		{"broader token", oldPass, apiReply{status: 200, header: http.Header{"X-Oauth-Scopes": {"repo"}}, body: `{"login":"Sriram-PR"}`},
+			"ghv-apply: checking the write token: wrong scopes: the write token has scopes repo; ghv-apply needs a classic token with only public_repo\n"},
+		{"revoked token", oldPass, apiReply{status: 401, body: `{"message":"Bad credentials"}`},
+			"ghv-apply: checking the write token: GitHub refused the write token (401): it is wrong, expired, or revoked\n"},
+	} {
+		t.Run(c.name, func(t *testing.T) {
+			routes := baseRoutes()
+			routes["/user"] = c.user
+			ft := answers(t, c.pass)
+			e, f := reviewEnv(t, ft, routes)
+			id := queueDraft(t, e.home, draft.Draft{Repo: "o/r", CreatedAt: at(9), Fields: draft.IssueCreateFields{Title: "A", Body: ""}})
+			if r := runWith(e); r.code != 1 || r.stderr != c.want {
+				t.Fatalf("exit %d, stderr %q", r.code, r.stderr)
+			}
+			if strings.Contains(ft.shown(), "== Draft") || len(f.reqs) > 1 {
+				t.Fatalf("a draft was shown or context fetched; terminal:\n%s", ft.shown())
+			}
+			if st := states(t, e.home); st[id].State != draft.Pending {
+				t.Fatalf("%+v", st)
+			}
+		})
 	}
 }

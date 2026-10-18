@@ -13,17 +13,17 @@ import (
 )
 
 // Request is one write, built from a draft's typed fields. Body is the
-// exact bytes sent; Want is the status GitHub answers when it worked.
+// exact bytes sent.
 type Request struct {
 	Method string
 	Path   string
 	Body   []byte
-	Want   int
 }
 
-// SHA256 is of "METHOD PATH\nBODY", the request as the audit log records it.
-func (r Request) SHA256() [32]byte {
-	return sha256.Sum256([]byte(r.Method + " " + r.Path + "\n" + string(r.Body)))
+// SHA256 is the hex SHA-256 of "METHOD PATH\nBODY", the request as the
+// preview shows it and the audit log records it.
+func (r Request) SHA256() string {
+	return fmt.Sprintf("%x", sha256.Sum256([]byte(r.Method+" "+r.Path+"\n"+string(r.Body))))
 }
 
 // The JSON field order is the order the preview shows.
@@ -65,21 +65,21 @@ func Build(d draft.Draft, fullName string) (Request, error) {
 	var body any
 	switch f := d.Fields.(type) {
 	case draft.ForkFields:
-		r, body = Request{Method: http.MethodPost, Path: repo + "/forks", Want: http.StatusAccepted}, struct{}{}
+		r, body = Request{Method: http.MethodPost, Path: repo + "/forks"}, struct{}{}
 	case draft.PRCreateFields:
-		r = Request{Method: http.MethodPost, Path: repo + "/pulls", Want: http.StatusCreated}
+		r = Request{Method: http.MethodPost, Path: repo + "/pulls"}
 		body = prCreateBody{f.Title, f.Head, f.Base, f.Body, f.Draft, f.MaintainerCanModify}
 	case draft.PREditFields:
-		r = Request{Method: http.MethodPatch, Path: fmt.Sprintf("%s/pulls/%d", repo, f.Number), Want: http.StatusOK}
+		r = Request{Method: http.MethodPatch, Path: fmt.Sprintf("%s/pulls/%d", repo, f.Number)}
 		body = prEditBody{f.Title, f.Body}
 	case draft.CommentFields:
-		r = Request{Method: http.MethodPost, Path: fmt.Sprintf("%s/issues/%d/comments", repo, f.Number), Want: http.StatusCreated}
+		r = Request{Method: http.MethodPost, Path: fmt.Sprintf("%s/issues/%d/comments", repo, f.Number)}
 		body = textBody{f.Body}
 	case draft.ReviewReplyFields:
-		r = Request{Method: http.MethodPost, Path: fmt.Sprintf("%s/pulls/%d/comments/%d/replies", repo, f.Number, f.CommentID), Want: http.StatusCreated}
+		r = Request{Method: http.MethodPost, Path: fmt.Sprintf("%s/pulls/%d/comments/%d/replies", repo, f.Number, f.CommentID)}
 		body = textBody{f.Body}
 	case draft.IssueCreateFields:
-		r = Request{Method: http.MethodPost, Path: repo + "/issues", Want: http.StatusCreated}
+		r = Request{Method: http.MethodPost, Path: repo + "/issues"}
 		body = issueBody{f.Title, f.Body}
 	default:
 		return Request{}, fmt.Errorf("no request for kind %q", d.Kind())

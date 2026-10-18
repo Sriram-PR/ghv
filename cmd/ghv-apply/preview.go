@@ -136,7 +136,7 @@ func renderRequest(r write.Request) []string {
 	if n == 0 {
 		out = append(out, "  (no fields)")
 	}
-	return append(out, fmt.Sprintf("  request SHA-256 %x", r.SHA256()))
+	return append(out, "  request SHA-256 "+r.SHA256())
 }
 
 // page shows lines a screen at a time. Enter shows the next screen; q skips

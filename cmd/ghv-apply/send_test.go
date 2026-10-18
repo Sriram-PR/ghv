@@ -2,7 +2,6 @@ package main
 
 import (
 	"encoding/json"
-	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
@@ -61,7 +60,7 @@ func TestApproveSends(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	sum := fmt.Sprintf("%x", req.SHA256())
+	sum := req.SHA256()
 	for _, s := range []string{
 		"  request SHA-256 " + sum + "\n-- end of " + id,
 		"[a]pprove, [e]dit, [r]eject, [s]kip, or [q]uit? \nSent: " + commentURL + "\n\nSent 1, rejected 0, left 0 in the queue.\n",

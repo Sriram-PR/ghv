@@ -2,6 +2,7 @@ package write
 
 import (
 	"crypto/sha256"
+	"fmt"
 	"strings"
 	"testing"
 	"time"
@@ -19,20 +20,19 @@ func TestBuild(t *testing.T) {
 		method string
 		path   string
 		body   string
-		want   int
 	}{
-		{"fork", draft.ForkFields{}, "POST", "/repos/moby/moby/forks", `{}`, 202},
+		{"fork", draft.ForkFields{}, "POST", "/repos/moby/moby/forks", `{}`},
 		{"pr.create", draft.PRCreateFields{Base: "release/1.x", Head: "Sriram-PR:fix/a", HeadSHA: strings.Repeat("a", 40),
 			Title: "fix: a <b> & c", Body: "line 1\nline 2", Draft: true, MaintainerCanModify: false},
 			"POST", "/repos/moby/moby/pulls",
-			`{"title":"fix: a <b> & c","head":"Sriram-PR:fix/a","base":"release/1.x","body":"line 1\nline 2","draft":true,"maintainer_can_modify":false}`, 201},
-		{"pr.edit title", draft.PREditFields{Number: 12, Title: ptr("New")}, "PATCH", "/repos/moby/moby/pulls/12", `{"title":"New"}`, 200},
-		{"pr.edit body", draft.PREditFields{Number: 12, Body: ptr("")}, "PATCH", "/repos/moby/moby/pulls/12", `{"body":""}`, 200},
-		{"pr.edit both", draft.PREditFields{Number: 12, Title: ptr("T"), Body: ptr("B")}, "PATCH", "/repos/moby/moby/pulls/12", `{"title":"T","body":"B"}`, 200},
-		{"comment", draft.CommentFields{Number: 7, Body: "hi"}, "POST", "/repos/moby/moby/issues/7/comments", `{"body":"hi"}`, 201},
+			`{"title":"fix: a <b> & c","head":"Sriram-PR:fix/a","base":"release/1.x","body":"line 1\nline 2","draft":true,"maintainer_can_modify":false}`},
+		{"pr.edit title", draft.PREditFields{Number: 12, Title: ptr("New")}, "PATCH", "/repos/moby/moby/pulls/12", `{"title":"New"}`},
+		{"pr.edit body", draft.PREditFields{Number: 12, Body: ptr("")}, "PATCH", "/repos/moby/moby/pulls/12", `{"body":""}`},
+		{"pr.edit both", draft.PREditFields{Number: 12, Title: ptr("T"), Body: ptr("B")}, "PATCH", "/repos/moby/moby/pulls/12", `{"title":"T","body":"B"}`},
+		{"comment", draft.CommentFields{Number: 7, Body: "hi"}, "POST", "/repos/moby/moby/issues/7/comments", `{"body":"hi"}`},
 		{"review.reply", draft.ReviewReplyFields{Number: 7, CommentID: 9876543210, Body: "yes"},
-			"POST", "/repos/moby/moby/pulls/7/comments/9876543210/replies", `{"body":"yes"}`, 201},
-		{"issue.create", draft.IssueCreateFields{Title: "Bug", Body: ""}, "POST", "/repos/moby/moby/issues", `{"title":"Bug","body":""}`, 201},
+			"POST", "/repos/moby/moby/pulls/7/comments/9876543210/replies", `{"body":"yes"}`},
+		{"issue.create", draft.IssueCreateFields{Title: "Bug", Body: ""}, "POST", "/repos/moby/moby/issues", `{"title":"Bug","body":""}`},
 	} {
 		t.Run(c.name, func(t *testing.T) {
 			d := draft.Draft{ID: "d-0123456789ab", Repo: "docker/docker", CreatedAt: created, Fields: c.fields}
@@ -40,11 +40,11 @@ func TestBuild(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			if r.Method != c.method || r.Path != c.path || string(r.Body) != c.body || r.Want != c.want {
-				t.Fatalf("got %s %s %s want %d", r.Method, r.Path, r.Body, r.Want)
+			if r.Method != c.method || r.Path != c.path || string(r.Body) != c.body {
+				t.Fatalf("got %s %s %s", r.Method, r.Path, r.Body)
 			}
 			sum := sha256.Sum256([]byte(c.method + " " + c.path + "\n" + c.body))
-			if r.SHA256() != sum {
+			if r.SHA256() != fmt.Sprintf("%x", sum) {
 				t.Fatalf("SHA256 is not of METHOD PATH LF BODY")
 			}
 		})

@@ -45,7 +45,7 @@ func (ss *session) send(ctx context.Context, it item, d draft.Draft, fullName st
 		}
 		err := audit.Append(audit.Path(ss.e.home), audit.Entry{
 			Time: now, Draft: it.id, Kind: string(d.Kind()), Repo: fullName,
-			RequestSHA256: fmt.Sprintf("%x", req.SHA256()), Status: res.Status, URL: res.URL,
+			RequestSHA256: req.SHA256(), Status: res.Status, URL: res.URL,
 		})
 		if err != nil {
 			ss.say("Warning: cannot write the audit log: %v", err)

@@ -142,7 +142,7 @@ func TestRenderRequest(t *testing.T) {
 		}
 		got := renderDraft(l, sanitize.CheckDraft(l.Draft), &req)
 		want := append([]string{""}, tt.want...)
-		want = append(want, fmt.Sprintf("  request SHA-256 %x", req.SHA256()))
+		want = append(want, "  request SHA-256 "+req.SHA256())
 		if end := got[len(got)-1]; !strings.HasPrefix(end, "-- end of ") {
 			t.Fatalf("the end marker is not last: %q", end)
 		}

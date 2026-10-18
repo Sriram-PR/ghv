@@ -17,6 +17,8 @@ type terminal interface {
 	ReadSecret(prompt string) ([]byte, error)
 	ReadLine(prompt string) (string, error)
 	Printf(format string, a ...any)
+	// Height is the terminal's height in lines, or 0 if unknown.
+	Height() int
 	Close() error
 }
 
@@ -37,6 +39,14 @@ func openDevTTY() (terminal, error) {
 }
 
 func (t devTTY) Close() error { return t.f.Close() }
+
+func (t devTTY) Height() int {
+	_, h, err := term.GetSize(int(t.f.Fd()))
+	if err != nil {
+		return 0
+	}
+	return h
+}
 
 func (t devTTY) Printf(format string, a ...any) { fmt.Fprintf(t.f, format, a...) }
 

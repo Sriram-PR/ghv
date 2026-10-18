@@ -32,6 +32,7 @@ type fakeTerm struct {
 	prompts []string
 	answers []func(shown string) string
 	secrets [][]byte
+	height  int
 }
 
 func answers(t *testing.T, as ...any) *fakeTerm {
@@ -68,6 +69,7 @@ func (f *fakeTerm) ReadSecret(p string) ([]byte, error) {
 func (f *fakeTerm) ReadLine(p string) (string, error) { return f.answer(p) }
 func (f *fakeTerm) Printf(format string, a ...any)    { fmt.Fprintf(&f.out, format, a...) }
 func (f *fakeTerm) Close() error                      { return nil }
+func (f *fakeTerm) Height() int                       { return f.height }
 func (f *fakeTerm) unanswered() int                   { return len(f.answers) }
 func (f *fakeTerm) shown() string                     { return f.out.String() }
 

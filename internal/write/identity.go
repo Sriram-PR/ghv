@@ -87,7 +87,11 @@ func Whoami(ctx context.Context, c *http.Client, tok []byte) (Identity, error) {
 	if !loginRE.MatchString(u.Login) {
 		return Identity{}, fmt.Errorf("GitHub's /user sent login %q", u.Login)
 	}
-	return Identity{Login: u.Login, Expires: expiry(resp.Header)}, nil
+	exp, err := expiry(resp.Header)
+	if err != nil {
+		return Identity{}, err
+	}
+	return Identity{Login: u.Login, Expires: exp}, nil
 }
 
 func setHeaders(req *http.Request, tok []byte) {
@@ -128,13 +132,16 @@ func parseScopes(vals []string) []string {
 	return out
 }
 
-func expiry(h http.Header) *time.Time {
-	exp := h.Get("Github-Authentication-Token-Expiration")
+func expiry(h http.Header) (*time.Time, error) {
+	exp, ok := h["Github-Authentication-Token-Expiration"]
+	if !ok {
+		return nil, nil
+	}
 	for _, layout := range []string{"2006-01-02 15:04:05 MST", "2006-01-02 15:04:05 -0700"} {
-		if t, err := time.Parse(layout, exp); err == nil {
+		if t, err := time.Parse(layout, exp[0]); err == nil {
 			t = t.UTC()
-			return &t
+			return &t, nil
 		}
 	}
-	return nil
+	return nil, fmt.Errorf("GitHub sent the token's expiry date %q, which ghv-apply cannot read", exp[0])
 }

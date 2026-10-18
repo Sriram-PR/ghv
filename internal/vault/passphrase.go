@@ -39,10 +39,10 @@ func parseWordlist(f string) []string {
 // Diceware returns n words chosen uniformly from the EFF large wordlist
 // with randomness from r, separated by spaces.
 func Diceware(r io.Reader, n int) ([]byte, error) {
-	max := big.NewInt(int64(len(words)))
+	count := big.NewInt(int64(len(words)))
 	var p []byte
 	for i := range n {
-		k, err := rand.Int(r, max)
+		k, err := rand.Int(r, count)
 		if err != nil {
 			clear(p)
 			return nil, err

@@ -75,20 +75,23 @@ func TestWhoamiRefusals(t *testing.T) {
 	noScopes.header.Del("X-Oauth-Scopes")
 	badLogin := okUser("public_repo")
 	badLogin.body = `{"login":"-bad"}`
+	badExpiry := okUser("public_repo")
+	badExpiry.header.Set("Github-Authentication-Token-Expiration", "next Tuesday")
 	for name, tt := range map[string]struct {
 		gh   *fakeGitHub
 		want string
 	}{
-		"broader":   {scopes("public_repo, repo"), "has scopes public_repo, repo; ghv-apply needs a classic token with only public_repo"},
-		"other":     {scopes("repo"), "has scopes repo;"},
-		"none":      {scopes(""), "has scopes none;"},
-		"no header": {noScopes, "no X-OAuth-Scopes header"},
-		"bad login": {badLogin, `login "-bad"`},
-		"401":       {&fakeGitHub{status: 401, body: `{"message":"Bad credentials"}`}, "wrong, expired, or revoked"},
-		"403":       {&fakeGitHub{status: 403, body: `{"message":"Resource protected by organization SAML enforcement."}`}, "GitHub answered 403: Resource protected by organization SAML enforcement."},
-		"redirect":  {&fakeGitHub{status: 301, header: http.Header{"Location": {"https://api.github.com/user2"}}}, "redirect"},
-		"server":    {&fakeGitHub{status: 502, body: "<html>"}, "GitHub answered 502"},
-		"not json":  {&fakeGitHub{status: 200, header: http.Header{"X-Oauth-Scopes": {"public_repo"}}, body: "<html>"}, "GitHub's /user"},
+		"broader":    {scopes("public_repo, repo"), "has scopes public_repo, repo; ghv-apply needs a classic token with only public_repo"},
+		"other":      {scopes("repo"), "has scopes repo;"},
+		"none":       {scopes(""), "has scopes none;"},
+		"no header":  {noScopes, "no X-OAuth-Scopes header"},
+		"bad login":  {badLogin, `login "-bad"`},
+		"bad expiry": {badExpiry, `expiry date "next Tuesday"`},
+		"401":        {&fakeGitHub{status: 401, body: `{"message":"Bad credentials"}`}, "wrong, expired, or revoked"},
+		"403":        {&fakeGitHub{status: 403, body: `{"message":"Resource protected by organization SAML enforcement."}`}, "GitHub answered 403: Resource protected by organization SAML enforcement."},
+		"redirect":   {&fakeGitHub{status: 301, header: http.Header{"Location": {"https://api.github.com/user2"}}}, "redirect"},
+		"server":     {&fakeGitHub{status: 502, body: "<html>"}, "GitHub answered 502"},
+		"not json":   {&fakeGitHub{status: 200, header: http.Header{"X-Oauth-Scopes": {"public_repo"}}, body: "<html>"}, "GitHub's /user"},
 	} {
 		_, err := Whoami(context.Background(), harden.Client(tt.gh), []byte(testToken))
 		if err == nil || !strings.Contains(err.Error(), tt.want) {

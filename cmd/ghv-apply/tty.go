@@ -83,5 +83,11 @@ func (t devTTY) ReadLine(prompt string) (string, error) {
 		}
 		line = append(line, b[:n]...)
 	}
+	// Whatever stays in the terminal reaches the shell as a command.
+	for b[0] != '\n' {
+		if _, err := t.f.Read(b); err != nil {
+			break
+		}
+	}
 	return "", fmt.Errorf("line longer than %d bytes", maxLine)
 }

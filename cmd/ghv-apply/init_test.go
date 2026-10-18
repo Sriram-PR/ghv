@@ -31,6 +31,7 @@ type fakeTerm struct {
 	out     strings.Builder
 	prompts []string
 	answers []func(shown string) string
+	secrets [][]byte
 }
 
 func answers(t *testing.T, as ...any) *fakeTerm {
@@ -60,7 +61,9 @@ func (f *fakeTerm) answer(prompt string) (string, error) {
 
 func (f *fakeTerm) ReadSecret(p string) ([]byte, error) {
 	a, err := f.answer(p)
-	return []byte(a), err
+	b := []byte(a)
+	f.secrets = append(f.secrets, b)
+	return b, err
 }
 func (f *fakeTerm) ReadLine(p string) (string, error) { return f.answer(p) }
 func (f *fakeTerm) Printf(format string, a ...any)    { fmt.Fprintf(&f.out, format, a...) }
@@ -122,6 +125,16 @@ func openVault(t *testing.T, home string, pass []byte) vault.Secret {
 		t.Fatal(err)
 	}
 	return s
+}
+
+func TestInitClearsTheTokenAsTyped(t *testing.T) {
+	ft := answers(t, "  "+testToken+" \t", "", typeGenerated)
+	if r := runWith(ttyEnv(t, ft, github("Sriram-PR")), "init"); r.code != 0 {
+		t.Fatalf("exit %d, stderr %q", r.code, r.stderr)
+	}
+	if typed := ft.secrets[0]; strings.Trim(string(typed), "\x00") != "" {
+		t.Fatalf("the token as typed is left as %q", typed)
+	}
 }
 
 func TestInitGeneratedPassphrase(t *testing.T) {

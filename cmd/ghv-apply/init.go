@@ -60,10 +60,11 @@ func readToken(ctx context.Context, e env, tty terminal) ([]byte, write.Identity
 	if err != nil {
 		return nil, write.Identity{}, err
 	}
-	tok := bytes.TrimSpace(raw)
+	tok := bytes.Clone(bytes.TrimSpace(raw))
+	clear(raw)
 	id, err := write.Whoami(ctx, e.client, tok)
 	if err != nil {
-		clear(raw)
+		clear(tok)
 		return nil, write.Identity{}, err
 	}
 	if id.Expires == nil {

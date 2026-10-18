@@ -2,6 +2,7 @@ package draft
 
 import (
 	"bytes"
+	"crypto/sha256"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -14,10 +15,13 @@ import (
 )
 
 type Outcome struct {
-	At     time.Time `json:"at"`
-	Status int       `json:"status,omitempty"`
-	URL    string    `json:"url,omitempty"`
-	Reason string    `json:"reason,omitempty"`
+	At       time.Time `json:"at"`
+	Status   int       `json:"status,omitempty"`
+	URL      string    `json:"url,omitempty"`
+	Reason   string    `json:"reason,omitempty"`
+	FullName string    `json:"full_name,omitempty"` // a fork's name, as GitHub made it
+	Edited   bool      `json:"edited,omitempty"`    // the reviewer changed the text before sending
+	Note     string    `json:"note,omitempty"`
 }
 
 type Entry struct {
@@ -35,9 +39,15 @@ var transitions = map[State][]State{
 
 const maxOutcomeSize = 64 << 10
 
+// ErrChanged means the file is no longer the one ghv-apply read and showed.
+var ErrChanged = errors.New("the draft file changed after ghv-apply read it")
+
 // Move renames the draft before writing its outcome: a crash in between
-// leaves the draft in the right state, only without details.
-func (q Queue) Move(id string, from, to State, o Outcome) error {
+// leaves the draft in the right state, only without details. sum is the
+// SHA-256 of the file as reviewed; ghv-apply sends from memory, so the
+// check keeps the queue a true record and catches an edit made during
+// review.
+func (q Queue) Move(id string, from, to State, sum [32]byte, o Outcome) error {
 	if !idRE.MatchString(id) {
 		return invalid("bad draft ID %q", id)
 	}
@@ -50,12 +60,12 @@ func (q Queue) Move(id string, from, to State, o Outcome) error {
 		return err
 	}
 	dst := filepath.Join(dstDir, id+".json")
-	fi, err := os.Lstat(src)
+	data, err := readRegular(src, MaxSize)
 	if err != nil {
 		return err
 	}
-	if !fi.Mode().IsRegular() {
-		return fmt.Errorf("%s is not a regular file", src)
+	if sha256.Sum256(data) != sum {
+		return fmt.Errorf("draft %s: %w", id, ErrChanged)
 	}
 	if _, err := os.Lstat(dst); err == nil {
 		return fmt.Errorf("%s already exists", dst)

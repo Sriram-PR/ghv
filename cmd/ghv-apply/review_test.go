@@ -161,7 +161,12 @@ func TestReviewNothingToDo(t *testing.T) {
 	ft := answers(t)
 	e, _ := reviewEnv(t, ft, baseRoutes())
 	id := queueDraft(t, e.home, draft.Draft{Repo: "o/r", CreatedAt: at(9), Fields: draft.IssueCreateFields{Title: "A", Body: ""}})
-	if err := (draft.Queue{Root: queueRoot(e.home)}).Move(id, draft.Pending, draft.Unknown, draft.Outcome{At: at(10)}); err != nil {
+	q := draft.Queue{Root: queueRoot(e.home)}
+	l, err := draft.ReadFile(filepath.Join(q.Dir(draft.Pending), id+".json"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := q.Move(id, draft.Pending, draft.Unknown, l.SHA256, draft.Outcome{At: at(10)}); err != nil {
 		t.Fatal(err)
 	}
 	if r := runWith(e); r.code != 0 || ft.shown() != "No drafts wait for review.\n1 draft in unknown/ waits for its result to be checked, which this ghv-apply cannot do yet.\n" {
@@ -184,5 +189,28 @@ func TestReviewRefusals(t *testing.T) {
 	defer lock.Release()
 	if r := runWith(e); r.code != 1 || !strings.Contains(r.stderr, "another ghv-apply session holds the queue lock") {
 		t.Fatalf("locked: exit %d, stderr %q", r.code, r.stderr)
+	}
+}
+
+func TestReviewRejectsOnlyTheDraftShown(t *testing.T) {
+	var path string
+	edit := func(string) string {
+		if err := os.WriteFile(path, []byte(`{"schema":1}`), 0o600); err != nil {
+			t.Fatal(err)
+		}
+		return "r"
+	}
+	ft := answers(t, edit, "")
+	e, _ := reviewEnv(t, ft, baseRoutes())
+	id := queueDraft(t, e.home, draft.Draft{Repo: "o/r", CreatedAt: at(9), Fields: draft.IssueCreateFields{Title: "A", Body: ""}})
+	path = filepath.Join(queueRoot(e.home), "queue", id+".json")
+	if r := runWith(e); r.code != 0 {
+		t.Fatalf("exit %d, stderr %q, terminal:\n%s", r.code, r.stderr, ft.shown())
+	}
+	if !strings.Contains(ft.shown(), "Cannot reject "+id+": draft "+id+": the draft file changed after ghv-apply read it\n\nRejected 0, left 1 in the queue.") {
+		t.Fatalf("terminal:\n%s", ft.shown())
+	}
+	if st := states(t, e.home); st[id].State != draft.Pending {
+		t.Fatalf("%+v", st)
 	}
 }

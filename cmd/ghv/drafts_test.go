@@ -32,7 +32,11 @@ func TestDrafts(t *testing.T) {
 		return id
 	}
 	move := func(id string, from, to draft.State, o draft.Outcome) {
-		if err := q.Move(id, from, to, o); err != nil {
+		l, err := draft.ReadFile(filepath.Join(q.Dir(from), id+".json"))
+		if err != nil {
+			t.Fatal(err)
+		}
+		if err := q.Move(id, from, to, l.SHA256, o); err != nil {
 			t.Fatal(err)
 		}
 	}

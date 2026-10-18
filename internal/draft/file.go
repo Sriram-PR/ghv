@@ -14,7 +14,8 @@ import (
 const MaxSize = 1 << 20
 
 // Loaded is one draft as read from disk. Raw is the only copy ghv-apply
-// renders and sends from; the file is never read again.
+// renders and sends from; the file is never read again. A draft that does
+// not decode still has Raw and SHA256, so it can be moved out of the queue.
 type Loaded struct {
 	Draft  Draft
 	Raw    []byte
@@ -31,12 +32,14 @@ func ReadFile(path string) (Loaded, error) {
 	if err != nil {
 		return Loaded{}, err
 	}
+	l := Loaded{Raw: raw, SHA256: sha256.Sum256(raw)}
 	d, err := Decode(raw)
 	if err != nil {
-		return Loaded{}, err
+		return l, err
 	}
 	d.ID = id
-	return Loaded{Draft: d, Raw: raw, SHA256: sha256.Sum256(raw)}, nil
+	l.Draft = d
+	return l, nil
 }
 
 var errTooLarge = errors.New("larger than the limit")

@@ -157,8 +157,9 @@ func reviewOne(ctx context.Context, e env, tty terminal, q draft.Queue, rv *revi
 			if reason = strings.TrimSpace(reason); reason == "" {
 				reason = "rejected in review"
 			}
-			if err := q.Move(it.id, draft.Pending, draft.Rejected, draft.Outcome{At: e.now().UTC(), Reason: reason}); err != nil {
-				return 0, err
+			if err := q.Move(it.id, draft.Pending, draft.Rejected, it.loaded.SHA256, draft.Outcome{At: e.now().UTC(), Reason: reason}); err != nil {
+				tty.Printf("%s\n", sanitize.Line(fmt.Sprintf("Cannot reject %s: %v", it.id, err)))
+				return actSkip, nil
 			}
 			tty.Printf("Rejected %s.\n", it.id)
 		case actSkip:

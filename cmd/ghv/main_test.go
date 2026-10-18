@@ -27,12 +27,13 @@ func testEnv(t *testing.T, h http.Handler) (env, *bytes.Buffer, *bytes.Buffer) {
 	var out, errb bytes.Buffer
 	home := t.TempDir()
 	e := env{
-		stdout: &out,
-		stderr: &errb,
-		home:   home,
-		getenv: func(string) string { return "" },
-		dir:    home,
-		now:    func() time.Time { return time.Date(2026, 10, 18, 12, 0, 0, 0, time.UTC) },
+		stdout:     &out,
+		stderr:     &errb,
+		home:       home,
+		passwdHome: home,
+		getenv:     func(string) string { return "" },
+		dir:        home,
+		now:        func() time.Time { return time.Date(2026, 10, 18, 12, 0, 0, 0, time.UTC) },
 	}
 	if h != nil {
 		e.transport = readtest.Transport{Handler: h}

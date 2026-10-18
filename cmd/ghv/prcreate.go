@@ -5,15 +5,12 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"regexp"
 	"strings"
 
 	"github.com/Sriram-PR/ghv/internal/draft"
 	"github.com/Sriram-PR/ghv/internal/read"
 	"github.com/Sriram-PR/ghv/internal/sanitize"
 )
-
-var commitSHARE = regexp.MustCompile(`^(?:[0-9a-f]{40}|[0-9a-f]{64})$`)
 
 func init() {
 	register(&command{
@@ -120,7 +117,7 @@ func branchHead(ctx context.Context, c *read.Client, repo, branch string) (strin
 	if err := json.Unmarshal(resp.Body, &g); err != nil {
 		return "", fmt.Errorf("GitHub's branch: %v", err)
 	}
-	if !commitSHARE.MatchString(g.Commit.SHA) {
+	if !draft.ValidSHA(g.Commit.SHA) {
 		return "", fmt.Errorf("GitHub sent %q as the head commit", g.Commit.SHA)
 	}
 	return g.Commit.SHA, nil

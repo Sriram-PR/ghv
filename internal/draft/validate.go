@@ -14,6 +14,9 @@ var (
 	shaRE      = regexp.MustCompile(`^(?:[0-9a-f]{40}|[0-9a-f]{64})$`)
 )
 
+// ValidSHA reports whether s is a full SHA-1 or SHA-256 commit ID.
+func ValidSHA(s string) bool { return shaRE.MatchString(s) }
+
 func Validate(d Draft) error {
 	if owner, name, ok := strings.Cut(d.Repo, "/"); !ok || !ownerRE.MatchString(owner) ||
 		!repoNameRE.MatchString(name) || name == "." || name == ".." {
@@ -33,7 +36,7 @@ func Validate(d Draft) error {
 		if !ok || !ownerRE.MatchString(owner) || !ValidBranch(branch) {
 			return invalid("head %q is not OWNER:BRANCH", f.Head)
 		}
-		if !shaRE.MatchString(f.HeadSHA) {
+		if !ValidSHA(f.HeadSHA) {
 			return invalid("head_sha %q is not a commit SHA", f.HeadSHA)
 		}
 		return checkTitle(f.Title)

@@ -13,6 +13,7 @@ func replyRoutes(t *testing.T) *routes {
 		"/repos/o/r/pulls/comments/101": `{"id":101,"pull_request_url":"https://api.github.com/repos/o/r/pulls/7"}`,
 		"/repos/o/r/pulls/comments/102": `{"id":102,"in_reply_to_id":101,"pull_request_url":"https://api.github.com/repos/o/r/pulls/7"}`,
 		"/repos/o/r/pulls/comments/103": `{"id":103,"pull_request_url":"https://api.github.com/repos/o/r/pulls/8"}`,
+		"/repos/o/r/pulls/comments/104": `{"id":104}`,
 	})
 }
 
@@ -41,6 +42,7 @@ func TestReviewReplyRefusals(t *testing.T) {
 		msg  string
 	}{
 		{"other pull request", []string{"7", "103"}, 2, "review comment 103 is on pull request 8, not 7"},
+		{"no pull request", []string{"7", "104"}, 1, "GitHub sent no pull request for review comment 104"},
 		{"missing comment", []string{"7", "999"}, 1, "no review comment 999 in o/r; for a conversation comment, use ghv comment"},
 		{"bad comment ID", []string{"7", "0101"}, 2, `"0101" is not a comment ID`},
 		{"empty body", []string{"7", "101", "--body-file", "empty.md"}, 2, "the body is empty"},

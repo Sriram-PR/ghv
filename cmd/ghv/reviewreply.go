@@ -75,6 +75,9 @@ func threadRoot(ctx context.Context, c *read.Client, repo string, n int, id int6
 	if err := json.Unmarshal(resp.Body, &g); err != nil {
 		return 0, fmt.Errorf("GitHub's review comment: %v", err)
 	}
+	if g.PullRequestURL == "" {
+		return 0, fmt.Errorf("GitHub sent no pull request for review comment %d", id)
+	}
 	if on := path.Base(g.PullRequestURL); on != strconv.Itoa(n) {
 		return 0, usagef("review comment %d is on pull request %s, not %d", id, on, n)
 	}

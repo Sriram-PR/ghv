@@ -118,7 +118,11 @@ func (a *app) submit(d draft.Draft) error {
 	for _, f := range report.Findings {
 		fmt.Fprintf(a.stderr, "ghv: warning: %s\n", sanitize.Line(f.String()))
 	}
-	id, err := a.draftQueue().Write(d)
+	q, err := a.draftQueue()
+	if err != nil {
+		return err
+	}
+	id, err := q.Write(d)
 	if errors.Is(err, draft.ErrInvalid) {
 		return usageError{err.Error()}
 	}

@@ -25,7 +25,7 @@ var draftedRE = regexp.MustCompile(`^Drafted (d-[0-9a-f]{12}): ask the human to 
 // queued returns the one pending draft in e's queue.
 func queued(t *testing.T, e env) draft.Draft {
 	t.Helper()
-	q := e.draftQueue()
+	q := queueOf(t, e)
 	list, err := q.List()
 	if err != nil || len(list) != 1 || list[0].State != draft.Pending {
 		t.Fatalf("queue %+v, err %v", list, err)
@@ -37,9 +37,18 @@ func queued(t *testing.T, e env) draft.Draft {
 	return l.Draft
 }
 
+func queueOf(t *testing.T, e env) draft.Queue {
+	t.Helper()
+	q, err := e.draftQueue()
+	if err != nil {
+		t.Fatal(err)
+	}
+	return q
+}
+
 func emptyQueue(t *testing.T, e env) {
 	t.Helper()
-	if list, err := e.draftQueue().List(); err != nil || len(list) != 0 {
+	if list, err := queueOf(t, e).List(); err != nil || len(list) != 0 {
 		t.Fatalf("queue %+v, err %v", list, err)
 	}
 }
@@ -176,4 +185,46 @@ func TestBodySizeLimits(t *testing.T) {
 	if r.code != 2 || !strings.Contains(r.stderr, "draft is larger than 1048576 bytes") {
 		t.Fatalf("exit %d, stderr %q", r.code, r.stderr)
 	}
+}
+
+func TestDraftingNeedsThePasswdHome(t *testing.T) {
+	for name, passwd := range map[string]string{
+		"other home": t.TempDir(),
+		"no entry":   "",
+	} {
+		t.Run(name, func(t *testing.T) {
+			e, _, _ := testEnv(t, noNetwork(t))
+			e.passwdHome = passwd
+			writeFile(t, filepath.Join(e.dir, "b.md"), "body\n")
+			for _, args := range [][]string{
+				{"issue", "create", "-R", "o/r", "--title", "T", "--body-file", "b.md"},
+				{"drafts"},
+			} {
+				r := runWith(t, registry, e, args...)
+				if r.code != 1 || r.stdout != "" || !strings.Contains(r.stderr, "passwd") {
+					t.Fatalf("%q: exit %d, stdout %q, stderr %q", args, r.code, r.stdout, r.stderr)
+				}
+			}
+			for _, h := range []string{e.home, passwd} {
+				if _, err := os.Stat(filepath.Join(h, ".local")); h != "" && !os.IsNotExist(err) {
+					t.Fatalf("%s/.local: %v", h, err)
+				}
+			}
+		})
+	}
+}
+
+func TestDraftingFollowsASymlinkedHome(t *testing.T) {
+	e, _, _ := testEnv(t, noNetwork(t))
+	link := filepath.Join(t.TempDir(), "home")
+	if err := os.Symlink(e.passwdHome, link); err != nil {
+		t.Fatal(err)
+	}
+	e.home = link
+	writeFile(t, filepath.Join(e.dir, "b.md"), "body\n")
+	r := runWith(t, registry, e, "issue", "create", "-R", "o/r", "--title", "T", "--body-file", "b.md")
+	if r.code != 0 || !draftedRE.MatchString(r.stdout) {
+		t.Fatalf("exit %d, stdout %q, stderr %q", r.code, r.stdout, r.stderr)
+	}
+	queued(t, e)
 }

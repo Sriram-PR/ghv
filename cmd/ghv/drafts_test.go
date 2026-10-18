@@ -22,7 +22,7 @@ func TestDraftsEmpty(t *testing.T) {
 
 func TestDrafts(t *testing.T) {
 	e, _, _ := testEnv(t, noNetwork(t))
-	q := e.draftQueue()
+	q := queueOf(t, e)
 	at := func(h int) time.Time { return time.Date(2026, 10, 18, h, 0, 0, 0, time.UTC) }
 	write := func(h int, repo string, f draft.Fields) string {
 		id, err := q.Write(draft.Draft{Repo: repo, CreatedAt: at(h), Fields: f})

@@ -2,8 +2,11 @@ package main
 
 import (
 	"context"
+	"errors"
+	"fmt"
 	"io"
 	"net/http"
+	"os"
 	"path/filepath"
 	"time"
 
@@ -16,6 +19,7 @@ type env struct {
 	stdin          io.Reader
 	stdout, stderr io.Writer
 	home           string
+	passwdHome     string // "" when the passwd lookup failed
 	getenv         func(string) string
 	dir            string
 	transport      http.RoundTripper
@@ -53,9 +57,28 @@ func (e env) tokenPath() string {
 func (e env) cacheDir() string { return e.xdg("XDG_CACHE_HOME", ".cache") }
 
 // draftQueue ignores XDG_DATA_HOME: ghv-apply finds the queue from the
-// passwd entry's home, so ghv must put it under the same home.
-func (e env) draftQueue() draft.Queue {
-	return draft.Queue{Root: filepath.Join(e.home, ".local", "share", "ghv")}
+// passwd entry's home, so ghv must put it under the same home. A $HOME
+// pointing elsewhere is refused: drafts there would never reach the human.
+func (e env) draftQueue() (draft.Queue, error) {
+	if e.passwdHome == "" {
+		return draft.Queue{}, errors.New("no passwd entry for this user; ghv-apply reads drafts from the passwd home")
+	}
+	if !sameDir(e.home, e.passwdHome) {
+		return draft.Queue{}, fmt.Errorf("$HOME is %s, not the passwd home %s; ghv-apply reads drafts from the passwd home", e.home, e.passwdHome)
+	}
+	return draft.Queue{Root: filepath.Join(e.passwdHome, ".local", "share", "ghv")}, nil
+}
+
+func sameDir(a, b string) bool {
+	if a == b {
+		return true
+	}
+	ai, err := os.Stat(a)
+	if err != nil {
+		return false
+	}
+	bi, err := os.Stat(b)
+	return err == nil && os.SameFile(ai, bi)
 }
 
 // app is what a command runs with: the environment, its parsed command

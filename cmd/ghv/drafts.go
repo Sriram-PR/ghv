@@ -35,7 +35,10 @@ type draftStatus struct {
 }
 
 func runDrafts(ctx context.Context, a *app) error {
-	q := a.draftQueue()
+	q, err := a.draftQueue()
+	if err != nil {
+		return err
+	}
 	entries, err := q.List()
 	if err != nil {
 		return err

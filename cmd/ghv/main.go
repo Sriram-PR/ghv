@@ -6,7 +6,9 @@ import (
 	"fmt"
 	"os"
 	"os/signal"
+	"os/user"
 	"slices"
+	"strconv"
 	"time"
 )
 
@@ -21,6 +23,11 @@ func main() {
 		fmt.Fprintln(os.Stderr, "ghv:", err)
 		os.Exit(1)
 	}
+	// Not os/user.Current: without cgo it falls back to $HOME.
+	var passwdHome string
+	if u, err := user.LookupId(strconv.Itoa(os.Getuid())); err == nil {
+		passwdHome = u.HomeDir
+	}
 	dir, err := os.Getwd()
 	if err != nil {
 		fmt.Fprintln(os.Stderr, "ghv:", err)
@@ -28,13 +35,14 @@ func main() {
 	}
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt)
 	code := run(ctx, registry, os.Args[1:], env{
-		stdin:  os.Stdin,
-		stdout: os.Stdout,
-		stderr: os.Stderr,
-		home:   home,
-		getenv: os.Getenv,
-		dir:    dir,
-		now:    time.Now,
+		stdin:      os.Stdin,
+		stdout:     os.Stdout,
+		stderr:     os.Stderr,
+		home:       home,
+		passwdHome: passwdHome,
+		getenv:     os.Getenv,
+		dir:        dir,
+		now:        time.Now,
 	})
 	stop()
 	os.Exit(code)

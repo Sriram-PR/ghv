@@ -31,8 +31,11 @@ func TestFindSent(t *testing.T) {
 		{"html_url":"https://github.com/o/r/issues/2","title":"Bug","body":"b","user":{"login":"Sriram-PR"},"created_at":"2026-10-18T11:50:00Z"},
 		{"html_url":"https://github.com/o/r/issues/4","title":"Bug","body":"b","user":{"login":"Sriram-PR"},"created_at":"2026-10-18T12:00:05Z"}]`)
 	routes["/repos/o/r/pulls?head=Sriram-PR%3Afix%2Fx&per_page=100&state=all"] = ok(`[
-		{"html_url":"https://github.com/o/r/pull/4","user":{"login":"Sriram-PR"},"created_at":"2026-10-18T12:00:06Z","head":{"sha":"` + strings.Repeat("b", 40) + `"}},
-		{"html_url":"https://github.com/o/r/pull/5","user":{"login":"Sriram-PR"},"created_at":"2026-10-18T12:00:06Z","head":{"sha":"` + sha + `"}}]`)
+		{"html_url":"https://github.com/o/r/pull/4","user":{"login":"someone"},"created_at":"2026-10-18T12:00:07Z","head":{"sha":"` + sha + `"}},
+		{"html_url":"https://github.com/o/r/pull/5","user":{"login":"Sriram-PR"},"created_at":"2026-10-18T12:00:06Z","head":{"sha":"` + strings.Repeat("b", 40) + `"}},
+		{"html_url":"https://github.com/o/r/pull/2","user":{"login":"Sriram-PR"},"created_at":"2026-10-18T11:50:00Z","head":{"sha":"` + sha + `"}}]`)
+	routes["/repos/o/r/pulls?head=Sriram-PR%3Afix%2Fy&per_page=100&state=all"] = ok(`[
+		{"html_url":"https://github.com/o/r/pull/2","user":{"login":"Sriram-PR"},"created_at":"2026-10-18T11:50:00Z","head":{"sha":"` + sha + `"}}]`)
 	routes["/repos/o/r/pulls/12"] = ok(`{"number":12,"title":"New title","body":"a\r\nb","state":"open","user":{"login":"u"}}`)
 	routes["/repos/o/r/forks?per_page=100&sort=newest"] = ok(`[
 		{"html_url":"https://github.com/someone/r","full_name":"someone/r","owner":{"login":"someone"}},
@@ -56,9 +59,9 @@ func TestFindSent(t *testing.T) {
 			"your replies to review comment 6 on o/r#8 since 2026-10-18 11:55 UTC, matching the draft's text"},
 		{"issue.create", draft.IssueCreateFields{Title: "Bug", Body: "b"}, false, "https://github.com/o/r/issues/4", "", ""},
 		{"issue.create, edited", draft.IssueCreateFields{Title: "Agent's", Body: "x"}, true, "https://github.com/o/r/issues/4", "", ""},
-		{"pr.create", draft.PRCreateFields{Base: "main", Head: "Sriram-PR:fix/x", HeadSHA: sha, Title: "T"}, false, "https://github.com/o/r/pull/5", "", ""},
-		{"pr.create, not there", draft.PRCreateFields{Base: "main", Head: "Sriram-PR:fix/x", HeadSHA: strings.Repeat("c", 40), Title: "T"}, false, "", "",
-			"your pull requests from Sriram-PR:fix/x at " + strings.Repeat("c", 12)},
+		{"pr.create, head moved since", draft.PRCreateFields{Base: "main", Head: "Sriram-PR:fix/x", HeadSHA: sha, Title: "T"}, false, "https://github.com/o/r/pull/5", "", ""},
+		{"pr.create, not there", draft.PRCreateFields{Base: "main", Head: "Sriram-PR:fix/y", HeadSHA: sha, Title: "T"}, false, "", "",
+			"your pull requests from Sriram-PR:fix/y since 2026-10-18 11:55 UTC"},
 		{"pr.edit", draft.PREditFields{Number: 12, Title: &title, Body: &body}, false, "https://github.com/o/r/pull/12", "", ""},
 		{"pr.edit, not there", draft.PREditFields{Number: 12, Title: &old}, false, "", "",
 			"whether o/r#12 now has the draft's title and body"},

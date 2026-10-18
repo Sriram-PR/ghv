@@ -37,7 +37,8 @@ func (rv *reviewer) findSent(ctx context.Context, d draft.Draft, sentAt time.Tim
 	mine := func(m fetch.Made) bool {
 		return strings.EqualFold(m.User.Login, rv.login) && !m.CreatedAt.Before(after)
 	}
-	when := " since " + after.UTC().Format("2006-01-02 15:04 UTC")
+	since := " since " + after.UTC().Format("2006-01-02 15:04 UTC")
+	when := since
 	if !edited {
 		when += ", matching the draft's text"
 	}
@@ -81,11 +82,11 @@ func (rv *reviewer) findSent(ctx context.Context, d draft.Draft, sentAt time.Tim
 			return found{}, err
 		}
 		for _, m := range ms {
-			if mine(m) && m.Head.SHA == f.HeadSHA {
+			if mine(m) {
 				return found{URL: m.HTMLURL}, nil
 			}
 		}
-		return found{Checked: fmt.Sprintf("your pull requests from %s at %s", f.Head, short(f.HeadSHA))}, nil
+		return found{Checked: fmt.Sprintf("your pull requests from %s%s", f.Head, since)}, nil
 	case draft.PREditFields:
 		url := fmt.Sprintf("https://github.com/%s/pull/%d", d.Repo, f.Number)
 		if edited {

@@ -7,11 +7,13 @@ import (
 	"path/filepath"
 	"time"
 
+	"github.com/Sriram-PR/ghv/internal/draft"
 	"github.com/Sriram-PR/ghv/internal/read"
 )
 
 // env is everything ghv takes from its process, so tests can supply it.
 type env struct {
+	stdin          io.Reader
 	stdout, stderr io.Writer
 	home           string
 	getenv         func(string) string
@@ -49,6 +51,12 @@ func (e env) tokenPath() string {
 }
 
 func (e env) cacheDir() string { return e.xdg("XDG_CACHE_HOME", ".cache") }
+
+// draftQueue ignores XDG_DATA_HOME: ghv-apply finds the queue from the
+// passwd entry's home, so ghv must put it under the same home.
+func (e env) draftQueue() draft.Queue {
+	return draft.Queue{Root: filepath.Join(e.home, ".local", "share", "ghv")}
+}
 
 // app is what a command runs with: the environment, its parsed command
 // line, and a read client made on first use.

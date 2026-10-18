@@ -16,8 +16,8 @@ func TestLog(t *testing.T) {
 	}
 	at := time.Date(2026, 10, 18, 12, 0, 0, 0, time.UTC)
 	for _, en := range []audit.Entry{
-		{Time: at, Draft: "d-0123456789ab", Kind: "comment", Repo: "o/r", RequestSHA256: "ab", Status: 201, URL: "https://github.com/o/r/issues/7#issuecomment-1"},
 		{Time: at.Add(90 * time.Minute), Draft: "d-0123456789ac", Kind: "issue.create", Repo: "evil\x1b]52;c;x\x07/r", URL: "https://github.com/o/r/issues/8", Found: true},
+		{Time: at, Draft: "d-0123456789ab", Kind: "comment", Repo: "o/r", RequestSHA256: "ab", Status: 201, URL: "https://github.com/o/r/issues/7#issuecomment-1"},
 	} {
 		if err := audit.Append(audit.Path(e.home), en); err != nil {
 			t.Fatal(err)

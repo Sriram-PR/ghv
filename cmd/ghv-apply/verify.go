@@ -137,11 +137,9 @@ func verify(ctx context.Context, e env, es []audit.Entry) error {
 		case en.Time.Before(from):
 			older++
 		case !seen[en.URL]:
-			url := en.URL
-			if en.Found {
-				url += " (found later)"
-			}
-			missing = append(missing, []string{"  " + en.Time.UTC().Format("2006-01-02 15:04 UTC"), en.Draft, en.Kind, en.Repo, url})
+			row := auditRow(en)
+			row[0] = "  " + row[0]
+			missing = append(missing, row)
 		}
 	}
 

@@ -40,6 +40,7 @@ func TestLogVerify(t *testing.T) {
 		{Time: day(17, 12), Draft: "d-00000000000e", Kind: "issue.create", Repo: "o/r", URL: "https://github.com/o/r/issues/9", Found: true},
 		{Time: day(17, 13), Draft: "d-00000000000f", Kind: "pr.edit", Repo: "o/r", URL: "https://github.com/o/r/pull/5", Status: 200},
 		{Time: time.Date(2026, 9, 1, 12, 0, 0, 0, time.UTC), Draft: "d-000000000010", Kind: "comment", Repo: "o/r", URL: "https://github.com/o/r/issues/1#issuecomment-9", Status: 201},
+		{Time: day(17, 10), Draft: "d-000000000011", Kind: "issue.create", Repo: "o/r", URL: "https://github.com/o/r/issues/10", Found: true},
 	} {
 		if err := audit.Append(audit.Path(e.home), en); err != nil {
 			t.Fatal(err)
@@ -52,7 +53,8 @@ func TestLogVerify(t *testing.T) {
 		"  2026-10-18 11:01 UTC  pull request  o/r  https://github.com/o/r/pull/6\n" +
 		"  2026-10-18 11:02 UTC  review        o/r  https://github.com/o/r/pull/8#pullrequestreview-78\n" +
 		"\nOther events, of kinds ghv-apply does not make: PushEvent 2, PullRequestEvent/closed 1, WatchEvent/started 1.\n" +
-		"\nIn the audit log but not in GitHub's events, which can lag by hours and drop a deleted repository's (1):\n" +
+		"\nIn the audit log but not in GitHub's events, which can lag by hours and drop a deleted repository's (2):\n" +
+		"  2026-10-17 10:00 UTC  d-000000000011  issue.create  o/r  https://github.com/o/r/issues/10 (found later)\n" +
 		"  2026-10-17 12:00 UTC  d-00000000000e  issue.create  o/r  https://github.com/o/r/issues/9 (found later)\n" +
 		"\nNot checked: 1 pr.edit line (GitHub has no event for an edit), 1 line older than the events GitHub keeps.\n"
 	if r.code != 1 || r.stdout != want || r.stderr != "ghv-apply: 3 events were made outside ghv-apply\n" {

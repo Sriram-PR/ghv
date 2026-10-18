@@ -20,6 +20,8 @@ func runLog(ctx context.Context, e env) error {
 	if err != nil {
 		return err
 	}
+	// A line recovery writes carries the earlier send time.
+	slices.SortStableFunc(es, func(a, b audit.Entry) int { return a.Time.Compare(b.Time) })
 	if slices.Contains(e.args, "--verify") {
 		return verify(ctx, e, es)
 	}
@@ -29,14 +31,18 @@ func runLog(ctx context.Context, e env) error {
 	}
 	rows := make([][]string, len(es))
 	for i, en := range es {
-		url := en.URL
-		if en.Found {
-			url += " (found later)"
-		}
-		rows[i] = []string{en.Time.UTC().Format("2006-01-02 15:04 UTC"), en.Draft, en.Kind, en.Repo, url}
+		rows[i] = auditRow(en)
 	}
 	writeTable(e, rows)
 	return nil
+}
+
+func auditRow(en audit.Entry) []string {
+	url := en.URL
+	if en.Found {
+		url += " (found later)"
+	}
+	return []string{en.Time.UTC().Format("2006-01-02 15:04 UTC"), en.Draft, en.Kind, en.Repo, url}
 }
 
 // writeTable prints rows in columns two spaces apart, every cell through

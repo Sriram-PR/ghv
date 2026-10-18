@@ -87,6 +87,8 @@ func TestSendFates(t *testing.T) {
 		{"bad token", 401, nil, `{"message":"Bad credentials"}`, NotSent, "GitHub refused the write token (401): it is wrong, expired, or revoked"},
 		{"rate limit", 403, limited, `{"message":"API rate limit exceeded"}`, NotSent, "GitHub answered 403: API rate limit exceeded"},
 		{"secondary limit", 403, http.Header{"Retry-After": {"60"}}, `{"message":"You have exceeded a secondary rate limit."}`, NotSent, "GitHub answered 403: You have exceeded a secondary rate limit."},
+		{"secondary limit, no headers", 403, nil, `{"message":"You have exceeded a secondary rate limit. Please wait a few minutes before you try again."}`, NotSent,
+			"GitHub answered 403: You have exceeded a secondary rate limit. Please wait a few minutes before you try again."},
 		{"too many", 429, nil, `{"message":"slow down"}`, NotSent, "GitHub answered 429: slow down"},
 		{"redirect", 307, http.Header{"Location": {"https://api.github.com/repositories/1/issues/7/comments"}}, ``, NotSent,
 			`GitHub answered 307, a redirect to "https://api.github.com/repositories/1/issues/7/comments"; ghv-apply does not follow redirects`},
@@ -157,5 +159,24 @@ func TestReaderSendsTheTokenWithGETsOnly(t *testing.T) {
 	}
 	if len(gh.reqs) != 1 {
 		t.Fatalf("%d requests reached GitHub", len(gh.reqs))
+	}
+}
+
+func TestReaderSendsTheTokenToTheAPIOnly(t *testing.T) {
+	gh := &fakeGitHub{status: 200, body: `{}`}
+	c := &http.Client{Transport: Reader(harden.Client(gh).Transport, []byte(testToken))}
+	for _, u := range []string{
+		"http://api.github.com/repos/o/r",
+		"https://github.com/o/r",
+		"https://api.github.com.evil.example/repos/o/r",
+		"https://raw.githubusercontent.com/o/r/main/x",
+	} {
+		req, _ := http.NewRequest("GET", u, nil)
+		if _, err := c.Do(req); err == nil || !strings.Contains(err.Error(), "ghv-apply talks to https://api.github.com only") {
+			t.Errorf("%s: %v", u, err)
+		}
+	}
+	if len(gh.reqs) != 0 {
+		t.Fatalf("%d requests left with the write token", len(gh.reqs))
 	}
 }

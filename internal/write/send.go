@@ -78,7 +78,7 @@ func Send(ctx context.Context, c *http.Client, tok []byte, r Request) Result {
 	case s == http.StatusUnauthorized, s >= 300 && s < 400:
 		res.Fate, res.Message = NotSent, statusError(resp, body).Error()
 	case s == http.StatusTooManyRequests,
-		s == http.StatusForbidden && (resp.Header.Get("X-Ratelimit-Remaining") == "0" || resp.Header.Get("Retry-After") != ""):
+		s == http.StatusForbidden && (resp.Header.Get("X-Ratelimit-Remaining") == "0" || resp.Header.Get("Retry-After") != "" || secondaryLimit(body)):
 		res.Fate, res.Message = NotSent, describe(s, body)
 	case s >= 400 && s < 500:
 		res.Fate, res.Message = Refused, describe(s, body)
@@ -86,6 +86,15 @@ func Send(ctx context.Context, c *http.Client, tok []byte, r Request) Result {
 		res.Fate, res.Message = Unknown, describe(s, body)
 	}
 	return res
+}
+
+// secondaryLimit reports GitHub's secondary rate limit, which can come as
+// a 403 with neither rate-limit header.
+func secondaryLimit(body []byte) bool {
+	var g struct {
+		Message string `json:"message"`
+	}
+	return json.Unmarshal(body, &g) == nil && strings.Contains(strings.ToLower(g.Message), "secondary rate limit")
 }
 
 // describe is GitHub's message with the details of a 422's errors.
@@ -117,7 +126,8 @@ func describe(status int, body []byte) string {
 
 // Reader sends GET requests through rt with the write token, for review
 // context once GitHub's anonymous rate limit is used up. Any other method
-// is refused before it leaves.
+// is refused before it leaves. rt must be harden.Client's transport, which
+// keeps the token on api.github.com.
 func Reader(rt http.RoundTripper, tok []byte) http.RoundTripper { return getOnly{rt, tok} }
 
 type getOnly struct {

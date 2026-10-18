@@ -28,6 +28,10 @@ func testEnv(t *testing.T) env {
 		openTTY: func() (terminal, error) { return nil, errors.New("no terminal in this test") },
 		edit:    func(string) error { return errNoEditor },
 		now:     func() time.Time { return time.Date(2026, 10, 18, 12, 0, 0, 0, time.UTC) },
+		afterFunc: func(time.Duration, func()) func() bool {
+			return func() bool { return true }
+		},
+		exit: func(int) { panic("exit called") },
 	}
 }
 

@@ -77,7 +77,11 @@ func runReview(ctx context.Context, e env) error {
 			return err
 		}
 		defer s.Zero()
-		ss := &session{e: e, tty: tty, q: q, tok: s.Token,
+		ss := &session{e: e, tty: idleTerm{tty, e.afterFunc, func() {
+			s.Zero()
+			tty.Printf("\nNo answer for 5 minutes: the session ended, and the write token was cleared from memory.\n")
+			e.exit(1)
+		}}, q: q, tok: s.Token,
 			rv: &reviewer{fc: fetch.New(e.client), login: s.Login, now: e.now()}}
 		for i, it := range items {
 			tty.Printf("\n== Draft %d of %d ==\n", i+1, len(items))

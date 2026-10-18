@@ -269,3 +269,42 @@ func TestReviewRefusesToUnlock(t *testing.T) {
 		})
 	}
 }
+
+func TestReviewIdle(t *testing.T) {
+	var limit time.Duration
+	var fire func()
+	var events []string
+	idle := func(string) string {
+		events = append(events, "idle")
+		fire()
+		return "s"
+	}
+	ft := answers(t, oldPass, "s", idle)
+	e, _ := reviewEnv(t, ft, baseRoutes())
+	e.afterFunc = func(d time.Duration, f func()) func() bool {
+		limit, fire = d, f
+		events = append(events, "arm")
+		return func() bool { events = append(events, "stop"); return true }
+	}
+	code := -1
+	e.exit = func(c int) { code = c; panic("idle") }
+	a := queueDraft(t, e.home, draft.Draft{Repo: "o/r", CreatedAt: at(9), Fields: draft.IssueCreateFields{Title: "A", Body: ""}})
+	b := queueDraft(t, e.home, draft.Draft{Repo: "o/r", CreatedAt: at(10), Fields: draft.IssueCreateFields{Title: "B", Body: ""}})
+	func() {
+		defer func() {
+			if r := recover(); r != "idle" {
+				t.Fatalf("panic %v", r)
+			}
+		}()
+		runWith(e)
+	}()
+	if limit != 5*time.Minute || code != 1 || strings.Join(events[:4], " ") != "arm stop arm idle" {
+		t.Fatalf("limit %v, exit %d, events %q", limit, code, events)
+	}
+	if !strings.HasSuffix(ft.shown(), "[q]uit? \nNo answer for 5 minutes: the session ended, and the write token was cleared from memory.\n") {
+		t.Fatalf("terminal:\n%s", ft.shown())
+	}
+	if st := states(t, e.home); st[a].State != draft.Pending || st[b].State != draft.Pending {
+		t.Fatalf("%+v", st)
+	}
+}

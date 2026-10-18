@@ -24,6 +24,8 @@ type env struct {
 	client         *http.Client
 	rand           io.Reader
 	now            func() time.Time
+	afterFunc      func(time.Duration, func()) (stop func() bool)
+	exit           func(code int)
 }
 
 type command struct {
@@ -56,6 +58,10 @@ func main() {
 		client:  harden.Client(harden.Transport()),
 		rand:    rand.Reader,
 		now:     time.Now,
+		afterFunc: func(d time.Duration, f func()) func() bool {
+			return time.AfterFunc(d, f).Stop
+		},
+		exit: os.Exit,
 	}))
 }
 

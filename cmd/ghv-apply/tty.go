@@ -7,6 +7,7 @@ import (
 	"os/signal"
 	"strings"
 	"syscall"
+	"time"
 
 	"golang.org/x/term"
 )
@@ -100,4 +101,22 @@ func (t devTTY) ReadLine(prompt string) (string, error) {
 		}
 	}
 	return "", fmt.Errorf("line longer than %d bytes", maxLine)
+}
+
+// idleLimit is how long a prompt waits for an answer once the vault is
+// open.
+const idleLimit = 5 * time.Minute
+
+// idleTerm calls onIdle when a prompt waits past idleLimit. onIdle runs on
+// the timer's goroutine while the prompt still waits.
+type idleTerm struct {
+	terminal
+	after  func(time.Duration, func()) (stop func() bool)
+	onIdle func()
+}
+
+func (t idleTerm) ReadLine(prompt string) (string, error) {
+	stop := t.after(idleLimit, t.onIdle)
+	defer stop()
+	return t.terminal.ReadLine(prompt)
 }

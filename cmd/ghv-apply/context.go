@@ -71,6 +71,8 @@ func (rv *reviewer) context(ctx context.Context, d draft.Draft) reviewContext {
 		rv.replyContext(ctx, &rc, repo, f)
 	case draft.PREditFields:
 		rv.editContext(ctx, &rc, repo, f)
+	case draft.PRCreateFields:
+		rv.createContext(ctx, &rc, repo, d.Repo, f)
 	case draft.ForkFields:
 		rv.forkContext(ctx, &rc, repo)
 	}

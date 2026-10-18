@@ -20,8 +20,9 @@ type apiReply struct {
 }
 
 // fakeAPI answers by request URI, prefixed "diff " for a diff and with
-// the method for anything but a GET; anything else is a 404. bodies holds
-// what each write sent.
+// the method for anything but a GET; anything else is a 404. A route
+// prefixed "auth " answers requests that carry a token. bodies holds what
+// each write sent.
 type fakeAPI struct {
 	routes map[string]apiReply
 	reqs   []*http.Request
@@ -40,6 +41,9 @@ func (f *fakeAPI) RoundTrip(r *http.Request) (*http.Response, error) {
 		f.bodies = append(f.bodies, string(b))
 	}
 	rp, ok := f.routes[key]
+	if a, found := f.routes["auth "+key]; found && r.Header.Get("Authorization") != "" {
+		rp, ok = a, true
+	}
 	if !ok {
 		rp = apiReply{status: 404, body: `{"message":"Not Found"}`}
 	}

@@ -43,6 +43,7 @@ type session struct {
 	q      draft.Queue
 	rv     *reviewer
 	tok    []byte
+	watch  *limitWatch // nil once the reviewer has been asked about the write token
 	counts [4]int
 }
 
@@ -77,12 +78,13 @@ func runReview(ctx context.Context, e env) error {
 			return err
 		}
 		defer s.Zero()
+		watch := &limitWatch{rt: e.client.Transport}
 		ss := &session{e: e, tty: idleTerm{tty, e.afterFunc, func() {
 			s.Zero()
 			tty.Printf("\nNo answer for 5 minutes: the session ended, and the write token was cleared from memory.\n")
 			e.exit(1)
-		}}, q: q, tok: s.Token,
-			rv: &reviewer{fc: fetch.New(e.client), login: s.Login, now: e.now()}}
+		}}, q: q, tok: s.Token, watch: watch,
+			rv: &reviewer{fc: fetch.New(withTransport(e.client, watch)), login: s.Login, now: e.now()}}
 		for i, it := range items {
 			tty.Printf("\n== Draft %d of %d ==\n", i+1, len(items))
 			t, stop, err := ss.reviewOne(ctx, it)
@@ -177,7 +179,11 @@ func (ss *session) reviewOne(ctx context.Context, it item) (t tally, stop bool, 
 		tty.Printf("Draft %s cannot be read: %s\n", it.id, sanitize.Line(it.err.Error()))
 		tty.Printf("ghv-apply will not send it; reject it to clear it from the queue.\n")
 	} else {
-		cur = &shown{d: it.loaded.Draft, rc: ss.rv.context(ctx, it.loaded.Draft)}
+		rc, err := ss.gather(ctx, it.loaded.Draft)
+		if err != nil {
+			return left, false, err
+		}
+		cur = &shown{d: it.loaded.Draft, rc: rc}
 		if err := ss.present(it, cur); err != nil {
 			return left, false, err
 		}
@@ -282,7 +288,9 @@ func (ss *session) edit(ctx context.Context, it item, cur *shown) error {
 	}
 	cur.d, cur.edited = d, true
 	if d.Kind() == draft.KindPREdit {
-		cur.rc = ss.rv.context(ctx, d)
+		if cur.rc, err = ss.gather(ctx, d); err != nil {
+			return err
+		}
 	}
 	ss.say("Edited. ghv-apply sends this version; the queue keeps the agent's file.")
 	return ss.present(it, cur)

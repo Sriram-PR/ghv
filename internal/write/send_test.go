@@ -127,3 +127,35 @@ func TestSendRefusesAnUnclassicToken(t *testing.T) {
 		t.Fatalf("result %+v, %d requests", res, len(gh.reqs))
 	}
 }
+
+func TestReaderSendsTheTokenWithGETsOnly(t *testing.T) {
+	gh := &fakeGitHub{status: 200, body: `{}`}
+	c := &http.Client{Transport: Reader(harden.Client(gh).Transport, []byte(testToken))}
+	req, _ := http.NewRequest("GET", "https://api.github.com/repos/o/r", nil)
+	req.Header.Set("Accept", "application/vnd.github.diff")
+	resp, err := c.Do(req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	resp.Body.Close()
+	if r := gh.reqs[0]; r.Header.Get("Authorization") != "Bearer "+testToken || r.Header.Get("Accept") != "application/vnd.github.diff" {
+		t.Fatalf("headers %v", r.Header)
+	}
+	if req.Header.Get("Authorization") != "" {
+		t.Fatal("the caller's request was changed")
+	}
+	for _, m := range []string{"POST", "PATCH", "PUT", "DELETE", "HEAD"} {
+		req, _ := http.NewRequest(m, "https://api.github.com/repos/o/r", strings.NewReader("{}"))
+		if _, err := c.Do(req); err == nil || !strings.Contains(err.Error(), "ghv-apply reads with the write token only by GET") {
+			t.Errorf("%s: %v", m, err)
+		}
+	}
+	c = &http.Client{Transport: Reader(harden.Client(gh).Transport, []byte("github_pat_x"))}
+	req, _ = http.NewRequest("GET", "https://api.github.com/repos/o/r", nil)
+	if _, err := c.Do(req); err == nil {
+		t.Fatal("an unclassic token was sent")
+	}
+	if len(gh.reqs) != 1 {
+		t.Fatalf("%d requests reached GitHub", len(gh.reqs))
+	}
+}

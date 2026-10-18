@@ -114,3 +114,28 @@ func describe(status int, body []byte) string {
 	}
 	return fmt.Sprintf("GitHub answered %d: %s (%s)", status, g.Message, strings.Join(details, "; "))
 }
+
+// Reader sends GET requests through rt with the write token, for review
+// context once GitHub's anonymous rate limit is used up. Any other method
+// is refused before it leaves.
+func Reader(rt http.RoundTripper, tok []byte) http.RoundTripper { return getOnly{rt, tok} }
+
+type getOnly struct {
+	rt  http.RoundTripper
+	tok []byte
+}
+
+func (g getOnly) RoundTrip(r *http.Request) (*http.Response, error) {
+	if r.Method != http.MethodGet {
+		if r.Body != nil {
+			r.Body.Close()
+		}
+		return nil, fmt.Errorf("ghv-apply reads with the write token only by GET, not %s", r.Method)
+	}
+	if err := CheckToken(g.tok); err != nil {
+		return nil, err
+	}
+	r = r.Clone(r.Context())
+	r.Header.Set("Authorization", "Bearer "+string(g.tok))
+	return g.rt.RoundTrip(r)
+}

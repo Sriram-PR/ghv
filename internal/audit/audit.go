@@ -3,8 +3,12 @@
 package audit
 
 import (
+	"bufio"
+	"bytes"
 	"encoding/json"
+	"errors"
 	"fmt"
+	"io/fs"
 	"os"
 	"path/filepath"
 	"syscall"
@@ -55,4 +59,42 @@ func Append(path string, e Entry) error {
 		err = cerr
 	}
 	return err
+}
+
+// maxLine bounds one line; a sent draft's line is a few hundred bytes.
+const maxLine = 64 << 10
+
+// Read returns the log's lines in order, none when there is no log. The
+// agent's user can edit the file, so it is read strictly: a symlink, an
+// unknown field, or a line that does not decode is an error.
+func Read(path string) ([]Entry, error) {
+	f, err := os.OpenFile(path, os.O_RDONLY|syscall.O_NOFOLLOW|syscall.O_NONBLOCK, 0)
+	if errors.Is(err, fs.ErrNotExist) {
+		return nil, nil
+	}
+	if err != nil {
+		return nil, err
+	}
+	defer f.Close()
+	if fi, err := f.Stat(); err != nil {
+		return nil, err
+	} else if !fi.Mode().IsRegular() {
+		return nil, fmt.Errorf("%s is not a regular file", path)
+	}
+	var es []Entry
+	sc := bufio.NewScanner(f)
+	sc.Buffer(make([]byte, 0, 4096), maxLine)
+	for n := 1; sc.Scan(); n++ {
+		dec := json.NewDecoder(bytes.NewReader(sc.Bytes()))
+		dec.DisallowUnknownFields()
+		var e Entry
+		if err := dec.Decode(&e); err != nil {
+			return nil, fmt.Errorf("audit log line %d: %w", n, err)
+		}
+		es = append(es, e)
+	}
+	if err := sc.Err(); err != nil {
+		return nil, fmt.Errorf("audit log line %d: %w", len(es)+1, err)
+	}
+	return es, nil
 }

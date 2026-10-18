@@ -7,6 +7,7 @@ import (
 	"io"
 	"net/http"
 	"os"
+	"slices"
 	"strings"
 	"time"
 
@@ -26,11 +27,13 @@ type env struct {
 	now            func() time.Time
 	afterFunc      func(time.Duration, func()) (stop func() bool)
 	sleep          func(time.Duration)
+	args           []string // the command's flags, from those it lists
 	exit           func(code int)
 }
 
 type command struct {
 	name, help string
+	flags      []string // the only arguments it takes
 	run        func(context.Context, env) error
 }
 
@@ -80,10 +83,18 @@ func run(ctx context.Context, args []string, e env) int {
 		if c.name != args[0] {
 			continue
 		}
-		if len(args) > 1 {
-			fmt.Fprintf(e.stderr, "ghv-apply: %s takes no arguments\n", c.name)
+		for _, a := range args[1:] {
+			if slices.Contains(c.flags, a) {
+				continue
+			}
+			if len(c.flags) == 0 {
+				fmt.Fprintf(e.stderr, "ghv-apply: %s takes no arguments\n", c.name)
+			} else {
+				fmt.Fprintf(e.stderr, "ghv-apply: %s takes only %s\n", c.name, strings.Join(c.flags, ", "))
+			}
 			return 2
 		}
+		e.args = args[1:]
 		return report(e, c.run(ctx, e))
 	}
 	fmt.Fprintf(e.stderr, "ghv-apply: unknown command %q; run ghv-apply --help\n", sanitize.Line(args[0]))

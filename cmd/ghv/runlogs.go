@@ -29,14 +29,7 @@ func init() {
 var failedFlag = flag{name: "failed", kind: boolFlag, help: "only the jobs that failed, timed out, or were cancelled"}
 
 // runID returns positional argument i as a workflow run ID.
-func (a *app) runID(i int) (int64, error) {
-	s := a.inv.args[i]
-	n, err := strconv.ParseInt(s, 10, 64)
-	if err != nil || n <= 0 || strconv.FormatInt(n, 10) != s {
-		return 0, usagef("%q is not a run ID", s)
-	}
-	return n, nil
-}
+func (a *app) runID(i int) (int64, error) { return a.idArg(i, "run ID") }
 
 // maxSize returns --max-size in bytes.
 func (a *app) maxSize() (int64, error) {

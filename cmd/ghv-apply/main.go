@@ -3,14 +3,19 @@ package main
 import (
 	"context"
 	"crypto/rand"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
 	"os"
+	"os/user"
+	"runtime"
 	"slices"
+	"strconv"
 	"strings"
 	"time"
 
+	"github.com/Sriram-PR/ghv/internal/doctor"
 	"github.com/Sriram-PR/ghv/internal/harden"
 	"github.com/Sriram-PR/ghv/internal/sanitize"
 )
@@ -29,11 +34,19 @@ type env struct {
 	sleep          func(time.Duration)
 	args           []string // the command's flags, from those it lists
 	exit           func(code int)
+	// For doctor: the process and the user.
+	goos           string
+	uid, pid, ppid int
+	username       string
+	proc           string // "/proc", or "" where there is none
+	executable     string
+	lookupUser     func(name string) (*user.User, error)
 }
 
 type command struct {
 	name, help string
 	flags      []string // the only arguments it takes
+	values     []string // flags that take the next argument as their value
 	run        func(context.Context, env) error
 }
 
@@ -53,6 +66,15 @@ func main() {
 		fmt.Fprintln(os.Stderr, "ghv-apply:", err)
 		os.Exit(1)
 	}
+	var username string
+	if u, err := user.LookupId(strconv.Itoa(os.Getuid())); err == nil {
+		username = u.Username
+	}
+	proc := ""
+	if runtime.GOOS == "linux" {
+		proc = "/proc"
+	}
+	exe, _ := os.Executable()
 	os.Exit(run(context.Background(), os.Args[1:], env{
 		stdout:  os.Stdout,
 		stderr:  os.Stderr,
@@ -65,8 +87,16 @@ func main() {
 		afterFunc: func(d time.Duration, f func()) func() bool {
 			return time.AfterFunc(d, f).Stop
 		},
-		sleep: time.Sleep,
-		exit:  os.Exit,
+		sleep:      time.Sleep,
+		exit:       os.Exit,
+		goos:       runtime.GOOS,
+		uid:        os.Getuid(),
+		pid:        os.Getpid(),
+		ppid:       os.Getppid(),
+		username:   username,
+		proc:       proc,
+		executable: exe,
+		lookupUser: user.Lookup,
 	}))
 }
 
@@ -83,14 +113,24 @@ func run(ctx context.Context, args []string, e env) int {
 		if c.name != args[0] {
 			continue
 		}
-		for _, a := range args[1:] {
+		rest := args[1:]
+		for i := 0; i < len(rest); i++ {
+			a := rest[i]
 			if slices.Contains(c.flags, a) {
 				continue
 			}
-			if len(c.flags) == 0 {
+			if slices.Contains(c.values, a) {
+				if i+1 == len(rest) {
+					fmt.Fprintf(e.stderr, "ghv-apply: %s %s needs a value\n", c.name, a)
+					return 2
+				}
+				i++
+				continue
+			}
+			if len(c.flags)+len(c.values) == 0 {
 				fmt.Fprintf(e.stderr, "ghv-apply: %s takes no arguments\n", c.name)
 			} else {
-				fmt.Fprintf(e.stderr, "ghv-apply: %s takes only %s\n", c.name, strings.Join(c.flags, ", "))
+				fmt.Fprintf(e.stderr, "ghv-apply: %s takes only %s\n", c.name, c.usage())
 			}
 			return 2
 		}
@@ -101,12 +141,25 @@ func run(ctx context.Context, args []string, e env) int {
 	return 2
 }
 
-func report(e env, err error) int {
-	if err != nil {
-		fmt.Fprintf(e.stderr, "ghv-apply: %s\n", sanitize.Line(err.Error()))
-		return 1
+// usage lists the command's flags, a value flag as FLAG VALUE.
+func (c command) usage() string {
+	parts := slices.Clone(c.flags)
+	for _, v := range c.values {
+		parts = append(parts, v+" VALUE")
 	}
-	return 0
+	return strings.Join(parts, ", ")
+}
+
+// report exits 4 when doctor found something HIGH, else 1 on an error.
+func report(e env, err error) int {
+	if err == nil {
+		return 0
+	}
+	fmt.Fprintf(e.stderr, "ghv-apply: %s\n", sanitize.Line(err.Error()))
+	if errors.As(err, new(doctor.HighError)) {
+		return 4
+	}
+	return 1
 }
 
 func usage() string {

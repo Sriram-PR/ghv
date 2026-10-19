@@ -18,6 +18,32 @@ func (e *Env) homes() []string {
 	return hs
 }
 
+// humanHome is where the human's shell config lives: the running user's
+// home when no --human-user was given.
+func (e *Env) humanHome() string {
+	if e.Human != nil {
+		return e.Human.Home
+	}
+	return e.Home
+}
+
+func (e *Env) writable(path string) bool {
+	if e.Writable != nil {
+		return e.Writable(path)
+	}
+	return kernelWritable(path)
+}
+
+// readable reports whether this process can open path for reading.
+func readable(path string) bool {
+	f, err := os.OpenFile(path, os.O_RDONLY|syscall.O_NONBLOCK, 0)
+	if err != nil {
+		return false
+	}
+	f.Close()
+	return true
+}
+
 // readCapped reads up to limit bytes of a regular file. O_NONBLOCK keeps a
 // FIFO from hanging the scan.
 func readCapped(path string, limit int64) ([]byte, error) {

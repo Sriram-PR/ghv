@@ -8,6 +8,7 @@ import (
 	"io"
 	"unicode/utf8"
 
+	"github.com/Sriram-PR/ghv/internal/doctor"
 	"github.com/Sriram-PR/ghv/internal/read"
 	"github.com/Sriram-PR/ghv/internal/sanitize"
 )
@@ -52,14 +53,18 @@ func escapeJSON(b []byte) []byte {
 }
 
 // errorCode returns the stable --json code and the exit status for err:
-// 1 API error, 2 usage error, 3 token invalid, expired, missing, or refused.
+// 1 API error, 2 usage error, 3 token invalid, expired, missing, or
+// refused, 4 doctor found something HIGH.
 func errorCode(err error) (string, int) {
 	var ue usageError
 	var te *read.TokenError
 	var ae *read.APIError
+	var he doctor.HighError
 	switch {
 	case errors.As(err, &ue):
 		return "usage", 2
+	case errors.As(err, &he):
+		return "doctor_high", 4
 	case errors.As(err, &te):
 		return "token_refused", 3
 	case errors.Is(err, read.ErrTokenFile):

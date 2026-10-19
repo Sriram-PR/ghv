@@ -7,6 +7,7 @@ import (
 	"io"
 	"net/http"
 	"os"
+	"os/user"
 	"path/filepath"
 	"time"
 
@@ -26,6 +27,14 @@ type env struct {
 	now            func() time.Time
 	sleep          func(context.Context, time.Duration) error
 	git            func(ctx context.Context, dir string, args ...string) ([]byte, error)
+	// For doctor: the process, the user, and a terminal to ask on.
+	goos       string
+	uid, pid   int
+	username   string
+	proc       string // "/proc", or "" where there is none
+	systemBin  string // where ghv-apply is installed: /usr/local/bin
+	lookupUser func(name string) (*user.User, error)
+	confirm    func(prompt string) (bool, error)
 }
 
 // wait sleeps for d, or until ctx is done.

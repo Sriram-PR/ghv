@@ -7,6 +7,7 @@ import (
 	"os"
 	"os/signal"
 	"os/user"
+	"runtime"
 	"slices"
 	"strconv"
 	"time"
@@ -24,9 +25,13 @@ func main() {
 		os.Exit(1)
 	}
 	// Not os/user.Current: without cgo it falls back to $HOME.
-	var passwdHome string
+	var passwdHome, username string
 	if u, err := user.LookupId(strconv.Itoa(os.Getuid())); err == nil {
-		passwdHome = u.HomeDir
+		passwdHome, username = u.HomeDir, u.Username
+	}
+	proc := ""
+	if runtime.GOOS == "linux" {
+		proc = "/proc"
 	}
 	dir, err := os.Getwd()
 	if err != nil {
@@ -43,6 +48,14 @@ func main() {
 		getenv:     os.Getenv,
 		dir:        dir,
 		now:        time.Now,
+		goos:       runtime.GOOS,
+		uid:        os.Getuid(),
+		pid:        os.Getpid(),
+		username:   username,
+		proc:       proc,
+		systemBin:  "/usr/local/bin",
+		lookupUser: user.Lookup,
+		confirm:    confirmOnTTY,
 	})
 	stop()
 	os.Exit(code)

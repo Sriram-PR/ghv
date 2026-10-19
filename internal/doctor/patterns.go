@@ -101,10 +101,12 @@ func dockerGHCR(_ context.Context, e *Env) []Finding {
 		}
 		slices.Sort(hosts)
 		for _, h := range slices.Compact(hosts) {
-			if host := strings.TrimPrefix(strings.TrimPrefix(h, "https://"), "http://"); strings.HasPrefix(host, "ghcr.io") || strings.HasPrefix(host, "docker.pkg.github.com") {
+			host := strings.TrimPrefix(strings.TrimPrefix(h, "https://"), "http://")
+			host, _, _ = strings.Cut(host, "/")
+			if name, _, _ := strings.Cut(host, ":"); name == "ghcr.io" || name == "docker.pkg.github.com" {
 				out = append(out, Finding{Severity: High,
 					Detail: fmt.Sprintf("%s has a login for %s, which is a GitHub token", p, h),
-					Fix:    fmt.Sprintf("docker logout %s, and revoke the token at https://github.com/settings/tokens", strings.TrimSuffix(host, "/"))})
+					Fix:    fmt.Sprintf("docker logout %s, and revoke the token at https://github.com/settings/tokens", host)})
 			}
 		}
 	}

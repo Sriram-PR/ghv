@@ -43,9 +43,10 @@ func TestTokenPatterns(t *testing.T) {
 
 func TestDockerGHCR(t *testing.T) {
 	home := t.TempDir()
-	plant(t, home, map[string]string{".docker/config.json": `{"auths":{"https://index.docker.io/v1/":{},"ghcr.io":{"auth":"eDp5"}},"credHelpers":{"docker.pkg.github.com":"secretservice"}}`})
+	plant(t, home, map[string]string{".docker/config.json": `{"auths":{"https://index.docker.io/v1/":{},"ghcr.io":{"auth":"eDp5"},"ghcr.io.evil.example":{},"https://ghcr.io/v2/":{}},"credHelpers":{"docker.pkg.github.com":"secretservice"}}`})
 	want := "HIGH " + filepath.Join(home, ".docker/config.json") + " has a login for docker.pkg.github.com, which is a GitHub token\n" +
-		"HIGH " + filepath.Join(home, ".docker/config.json") + " has a login for ghcr.io, which is a GitHub token\n"
+		"HIGH " + filepath.Join(home, ".docker/config.json") + " has a login for ghcr.io, which is a GitHub token\n" +
+		"HIGH " + filepath.Join(home, ".docker/config.json") + " has a login for https://ghcr.io/v2/, which is a GitHub token\n"
 	if got := details(dockerGHCR(context.Background(), &Env{Home: home})); got != want {
 		t.Fatalf("got:\n%s\nwant:\n%s", got, want)
 	}

@@ -22,6 +22,9 @@ const environLimit = 1 << 20
 
 func envTokens(_ context.Context, e *Env) []Finding {
 	var out []Finding
+	if e.Getenv == nil && e.EnvErr != nil {
+		out = append(out, Finding{Severity: Info, Detail: fmt.Sprintf("%s, not checked: %v", e.EnvOf, e.EnvErr)})
+	}
 	if e.Getenv != nil {
 		for _, v := range tokenVars {
 			if e.Getenv(v) != "" {
@@ -60,6 +63,23 @@ func envTokens(_ context.Context, e *Env) []Finding {
 		}
 	}
 	return out
+}
+
+// Environ is the environment pid started with, first value of each name.
+func Environ(proc string, pid int) (map[string]string, error) {
+	b, err := readCapped(filepath.Join(proc, strconv.Itoa(pid), "environ"), environLimit)
+	if err != nil {
+		return nil, err
+	}
+	vars := map[string]string{}
+	for kv := range bytes.SplitSeq(b, []byte{0}) {
+		if k, v, ok := bytes.Cut(kv, []byte("=")); ok {
+			if _, seen := vars[string(k)]; !seen {
+				vars[string(k)] = string(v)
+			}
+		}
+	}
+	return vars, nil
 }
 
 func procName(proc, pid string) string {

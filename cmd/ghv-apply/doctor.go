@@ -1,13 +1,11 @@
 package main
 
 import (
-	"bytes"
 	"context"
 	"encoding/json"
 	"fmt"
 	"io"
 	"net/http"
-	"os"
 	"path/filepath"
 	"slices"
 	"strconv"
@@ -55,10 +53,12 @@ func doctorEnv(e env) (doctor.Env, error) {
 		de.ApplyPaths = []string{e.executable}
 	}
 	if e.proc != "" && e.ppid > 0 {
-		if vars, err := parentEnviron(e.proc, e.ppid); err == nil {
+		de.EnvOf = fmt.Sprintf("the environment of ghv-apply's parent, pid %d", e.ppid)
+		de.EnvPID = e.ppid
+		if vars, err := doctor.Environ(e.proc, e.ppid); err == nil {
 			de.Getenv = func(k string) string { return vars[k] }
-			de.EnvOf = fmt.Sprintf("the environment of ghv-apply's parent, pid %d", e.ppid)
-			de.EnvPID = e.ppid
+		} else {
+			de.EnvErr = err
 		}
 	}
 	if i := slices.Index(e.args, "--human-user"); i >= 0 {
@@ -74,22 +74,6 @@ func doctorEnv(e env) (doctor.Env, error) {
 		de.Human = &doctor.Human{Name: u.Username, UID: uid, Home: u.HomeDir}
 	}
 	return de, nil
-}
-
-func parentEnviron(proc string, ppid int) (map[string]string, error) {
-	b, err := os.ReadFile(filepath.Join(proc, strconv.Itoa(ppid), "environ"))
-	if err != nil {
-		return nil, err
-	}
-	vars := map[string]string{}
-	for kv := range bytes.SplitSeq(b, []byte{0}) {
-		if k, v, ok := bytes.Cut(kv, []byte("=")); ok {
-			if _, seen := vars[string(k)]; !seen {
-				vars[string(k)] = string(v)
-			}
-		}
-	}
-	return vars, nil
 }
 
 // tokenScopes sends the read token in one GET /rate_limit, which does not

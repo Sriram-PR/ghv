@@ -72,6 +72,24 @@ func TestDoctorHigh(t *testing.T) {
 	}
 }
 
+// Run with sudo, the parent is root's: a skipped environment is reported.
+func TestDoctorParentEnvironUnreadable(t *testing.T) {
+	e, _ := doctorTestEnv(t, "")
+	os.Remove(filepath.Join(e.proc, "77/environ"))
+	r := runWith(e, "doctor", "--human-user", "sriram")
+	want := "INFO    env-tokens  the environment of ghv-apply's parent, pid 77, not checked: open " + filepath.Join(e.proc, "77/environ") + ": no such file or directory\n"
+	if r.code != 0 || !strings.Contains(r.stdout, want) {
+		t.Fatalf("exit %d, stderr %q, stdout:\n%s", r.code, r.stderr, r.stdout)
+	}
+}
+
+func TestDoctorParentEnvironCapped(t *testing.T) {
+	e, _ := doctorTestEnv(t, "PAD="+strings.Repeat("x", 1<<20)+"\x00GH_TOKEN=ghp_y\x00")
+	if r := runWith(e, "doctor", "--human-user", "sriram"); r.code != 0 || strings.Contains(r.stdout, "GH_TOKEN") {
+		t.Fatalf("exit %d, stderr %q, stdout:\n%s", r.code, r.stderr, r.stdout)
+	}
+}
+
 func TestDoctorFlags(t *testing.T) {
 	e, _ := doctorTestEnv(t, "")
 	for _, c := range []struct {

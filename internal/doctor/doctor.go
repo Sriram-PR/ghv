@@ -59,9 +59,10 @@ type Env struct {
 	Human *Human // nil when --human-user was not given
 	PID   int
 	// Getenv reads the environment this process was started with; EnvOf
-	// names it in findings. nil when it cannot be read.
+	// names it in findings. nil when it cannot be read; EnvErr says why.
 	Getenv func(string) string
 	EnvOf  string
+	EnvErr error
 	EnvPID int    // the process Getenv reads; the /proc scan skips it
 	Proc   string // "/proc", or "" where there is none
 	// Writable reports whether this process can change path; nil uses

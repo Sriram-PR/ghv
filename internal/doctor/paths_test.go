@@ -49,6 +49,12 @@ func TestApplyBinary(t *testing.T) {
 	if err := os.Symlink(filepath.Join(bin, "ghv-apply"), link); err != nil {
 		t.Fatal(err)
 	}
+	hop := filepath.Join(root, "opt/hop")
+	os.MkdirAll(hop, 0o700)
+	twoHops := filepath.Join(root, "home/u/bin/two-hops")
+	if os.Symlink("../../usr/local/bin/ghv-apply", filepath.Join(hop, "ghv-apply")) != nil || os.Symlink(filepath.Join(hop, "ghv-apply"), twoHops) != nil {
+		t.Fatal("symlinks")
+	}
 	for _, c := range []struct {
 		name     string
 		paths    []string
@@ -65,6 +71,9 @@ func TestApplyBinary(t *testing.T) {
 			"HIGH " + filepath.Dir(link) + ", a directory above " + link + ", is writable by this user: ghv-apply could be replaced\n"},
 		{"the link's target", []string{link}, writableOnly(bin),
 			"HIGH " + bin + ", a directory above " + filepath.Join(bin, "ghv-apply") + ", is writable by this user: ghv-apply could be replaced\n"},
+		{"a link in the middle of the chain", []string{twoHops}, writableOnly(hop),
+			"HIGH " + hop + ", a directory above " + filepath.Join(hop, "ghv-apply") + ", is writable by this user: ghv-apply could be replaced\n"},
+		{"a chain with nothing writable", []string{twoHops}, writableOnly(), ""},
 	} {
 		got := details(applyBinary(context.Background(), &Env{ApplyPaths: c.paths, Writable: c.writable}))
 		if got != c.want {

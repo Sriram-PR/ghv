@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 )
 
@@ -22,11 +23,7 @@ func applyBinary(_ context.Context, e *Env) []Finding {
 	}
 	var out []Finding
 	for _, p := range e.ApplyPaths {
-		paths := []string{p}
-		if r, err := filepath.EvalSymlinks(p); err == nil && r != p {
-			paths = append(paths, r)
-		}
-		for _, q := range paths {
+		for _, q := range linkChain(p) {
 			if w := firstWritable(e, q); w != "" {
 				what := w + ", a directory above " + q + ","
 				if w == q {
@@ -38,6 +35,27 @@ func applyBinary(_ context.Context, e *Env) []Finding {
 				break
 			}
 		}
+	}
+	return out
+}
+
+// linkChain is path, each link it leads through, and its resolved target:
+// changing any of them changes what runs.
+func linkChain(path string) []string {
+	out := []string{path}
+	for p := path; len(out) < 40; {
+		t, err := os.Readlink(p)
+		if err != nil {
+			break
+		}
+		if !filepath.IsAbs(t) {
+			t = filepath.Join(filepath.Dir(p), t)
+		}
+		p = filepath.Clean(t)
+		out = append(out, p)
+	}
+	if r, err := filepath.EvalSymlinks(path); err == nil && !slices.Contains(out, r) {
+		out = append(out, r)
 	}
 	return out
 }

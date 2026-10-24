@@ -79,6 +79,15 @@ type Env struct {
 	// read token is read-only. Confirm is nil without a terminal.
 	AckFineGrained bool
 	Confirm        func(prompt string) (bool, error)
+	// Login is the GitHub account whose SSH keys are compared, from
+	// --login; WhoAmI finds one when it is empty, and may be nil.
+	// UserKeys lists an account's keys as "TYPE BASE64" lines; nil leaves
+	// keys uncompared.
+	Login    string
+	WhoAmI   func(ctx context.Context) (string, error)
+	UserKeys func(ctx context.Context, login string) ([]string, error)
+
+	gh *githubKeys
 }
 
 type check struct {

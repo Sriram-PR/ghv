@@ -97,7 +97,7 @@ func TestDoctorFlags(t *testing.T) {
 		want string
 	}{
 		{[]string{"doctor", "--human-user"}, "ghv-apply: doctor --human-user needs a value\n"},
-		{[]string{"doctor", "--bogus"}, "ghv-apply: doctor takes only --ack-fine-grained, --json, --human-user VALUE\n"},
+		{[]string{"doctor", "--bogus"}, "ghv-apply: doctor takes only --ack-fine-grained, --json, --human-user VALUE, --login VALUE\n"},
 	} {
 		if r := runWith(e, c.args...); r.code != 2 || r.stderr != c.want {
 			t.Errorf("%q: exit %d, stderr %q", c.args, r.code, r.stderr)

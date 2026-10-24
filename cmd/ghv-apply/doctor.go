@@ -6,16 +6,18 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"net/url"
 	"path/filepath"
 	"slices"
 	"strconv"
 	"strings"
 
 	"github.com/Sriram-PR/ghv/internal/doctor"
+	"github.com/Sriram-PR/ghv/internal/fetch"
 )
 
 func init() {
-	commands = append(commands, command{name: "doctor", flags: []string{"--ack-fine-grained", "--json"}, values: []string{"--human-user"},
+	commands = append(commands, command{name: "doctor", flags: []string{"--ack-fine-grained", "--json"}, values: []string{"--human-user", "--login"},
 		help: "report what this process can reach that ghv cannot guard; run it as the agent's user, with --human-user YOU", run: runDoctor})
 }
 
@@ -49,6 +51,12 @@ func doctorEnv(e env) (doctor.Env, error) {
 		AckFineGrained: slices.Contains(e.args, "--ack-fine-grained"),
 		Confirm:        func(prompt string) (bool, error) { return confirm(e, prompt) },
 	}
+	if i := slices.Index(e.args, "--login"); i >= 0 {
+		if de.Login = e.args[i+1]; !doctor.ValidLogin(de.Login) {
+			return doctor.Env{}, fmt.Errorf("--login %s is not a GitHub login", de.Login)
+		}
+	}
+	de.UserKeys = func(ctx context.Context, login string) ([]string, error) { return userKeys(ctx, e.client, login) }
 	if e.executable != "" {
 		de.ApplyPaths = []string{e.executable}
 	}
@@ -74,6 +82,22 @@ func doctorEnv(e env) (doctor.Env, error) {
 		de.Human = &doctor.Human{Name: u.Username, UID: uid, Home: u.HomeDir}
 	}
 	return de, nil
+}
+
+// userKeys reads an account's SSH keys anonymously; ghv-apply has no
+// login of its own to fall back on.
+func userKeys(ctx context.Context, c *http.Client, login string) ([]string, error) {
+	var keys []struct {
+		Key string `json:"key"`
+	}
+	if err := fetch.New(c).GetJSON(ctx, "/users/"+url.PathEscape(login)+"/keys?per_page=100", &keys); err != nil {
+		return nil, err
+	}
+	out := make([]string, len(keys))
+	for i, k := range keys {
+		out[i] = k.Key
+	}
+	return out, nil
 }
 
 // tokenScopes sends the read token in one GET /rate_limit, which does not

@@ -14,11 +14,11 @@ func init() { register("ssh-keys", sshKeys) }
 
 const sshKeyLimit = 64 << 10
 
-func sshKeys(_ context.Context, e *Env) []Finding {
+func sshKeys(ctx context.Context, e *Env) []Finding {
 	var out []Finding
 	for _, k := range unprotectedKeys(e) {
 		f := Finding{Severity: High,
-			Detail: fmt.Sprintf("%s has no passphrase (%s)", k.path, k.describe()),
+			Detail: fmt.Sprintf("%s has no passphrase (%s)%s", k.path, k.describe(), e.onGitHub(ctx, k.blob)),
 			Fix:    fmt.Sprintf("add a passphrase: ssh-keygen -p -f %s; or delete the key, and remove it at https://github.com/settings/keys if it is there", k.path)}
 		if k.securityKey() {
 			f.Severity = Medium

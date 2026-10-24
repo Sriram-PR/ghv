@@ -2,8 +2,10 @@ package main
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
+	"net/url"
 	"os"
 	"path/filepath"
 	"slices"
@@ -17,10 +19,11 @@ import (
 var (
 	humanUserFlag = flag{name: "human-user", kind: stringFlag, arg: "NAME", help: "the human's user name, to check the agent does not run as it"}
 	ackFlag       = flag{name: "ack-fine-grained", kind: boolFlag, help: "after asking on the terminal, record that a fine-grained read token is read-only"}
+	loginFlag     = flag{name: "login", kind: stringFlag, arg: "LOGIN", help: "your GitHub login, to compare SSH keys with your account's (default: the read token's)"}
 )
 
 func init() {
-	register(&command{path: "doctor", flags: []flag{humanUserFlag, ackFlag},
+	register(&command{path: "doctor", flags: []flag{humanUserFlag, ackFlag, loginFlag},
 		help: "Report what this process can reach that ghv cannot guard: other GitHub credentials, the human's own user, a writable ghv-apply", run: runDoctor})
 }
 
@@ -47,6 +50,10 @@ func (a *app) doctorEnv() (doctor.Env, error) {
 		Getenv: a.getenv, EnvOf: "this process's environment", EnvPID: a.pid, Proc: a.proc,
 		ApplyPaths: a.applyPaths(), TokenPath: a.tokenPath(), Scopes: a.tokenScopes,
 		AckFineGrained: a.inv.bool("ack-fine-grained"), Confirm: a.confirm,
+		Login: a.inv.str("login"), WhoAmI: a.whoAmI, UserKeys: a.userKeys,
+	}
+	if e.Login != "" && !doctor.ValidLogin(e.Login) {
+		return doctor.Env{}, usagef("--login %s is not a GitHub login", e.Login)
 	}
 	if e.Home == "" {
 		e.Home = a.home
@@ -90,6 +97,47 @@ func (a *app) tokenScopes(ctx context.Context, tok string) ([]string, bool, erro
 	}
 	info := read.Inspect(read.KindOf(tok), resp.Header)
 	return info.Scopes, info.Scopes != nil, nil
+}
+
+// whoAmI is the read token's login, or "" without a token.
+func (a *app) whoAmI(ctx context.Context) (string, error) {
+	c, err := a.read()
+	if err != nil || !c.Authenticated() {
+		return "", err
+	}
+	resp, err := c.Get(ctx, "user", "")
+	if err != nil {
+		return "", err
+	}
+	var u struct {
+		Login string `json:"login"`
+	}
+	if err := json.Unmarshal(resp.Body, &u); err != nil {
+		return "", fmt.Errorf("GET user: %v", err)
+	}
+	return u.Login, nil
+}
+
+func (a *app) userKeys(ctx context.Context, login string) ([]string, error) {
+	c, err := a.read()
+	if err != nil {
+		return nil, err
+	}
+	resp, err := c.Get(ctx, "users/"+url.PathEscape(login)+"/keys?per_page=100", "")
+	if err != nil {
+		return nil, err
+	}
+	var keys []struct {
+		Key string `json:"key"`
+	}
+	if err := json.Unmarshal(resp.Body, &keys); err != nil {
+		return nil, fmt.Errorf("GET users/%s/keys: %v", login, err)
+	}
+	out := make([]string, len(keys))
+	for i, k := range keys {
+		out[i] = k.Key
+	}
+	return out, nil
 }
 
 // confirmOnTTY asks on /dev/tty, never stdin, so the agent cannot answer.

@@ -3,14 +3,18 @@ package main
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
 	"net/url"
+	"os"
+	"os/exec"
 	"path/filepath"
 	"slices"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/Sriram-PR/ghv/internal/doctor"
 	"github.com/Sriram-PR/ghv/internal/fetch"
@@ -56,6 +60,7 @@ func doctorEnv(e env) (doctor.Env, error) {
 			return doctor.Env{}, fmt.Errorf("--login %s is not a GitHub login", de.Login)
 		}
 	}
+	de.Exec = e.runProgram
 	de.UserKeys = func(ctx context.Context, login string) ([]string, error) { return userKeys(ctx, e.client, login) }
 	if e.executable != "" {
 		de.ApplyPaths = []string{e.executable}
@@ -82,6 +87,51 @@ func doctorEnv(e env) (doctor.Env, error) {
 		de.Human = &doctor.Human{Name: u.Username, UID: uid, Home: u.HomeDir}
 	}
 	return de, nil
+}
+
+// gitPaths are where git is looked for: PATH is not in ghv-apply's
+// environment.
+var gitPaths = []string{"/usr/bin/git", "/usr/local/bin/git", "/opt/homebrew/bin/git", "/Library/Developer/CommandLineTools/usr/bin/git"}
+
+// programRunner runs git, from the first of gitPaths that exists, or
+// macOS's security, for doctor. The environment is built here, not
+// inherited: the passwd home, a fixed PATH for helpers, the runtime
+// directory for the keyring's bus, and every prompt off.
+func programRunner(home, runtimeDir string, uid int, gitPaths []string) func(ctx context.Context, stdin, name string, args ...string) ([]byte, error) {
+	return func(ctx context.Context, stdin, name string, args ...string) ([]byte, error) {
+		var path string
+		switch name {
+		case "git":
+			for _, p := range gitPaths {
+				if fi, err := os.Stat(p); err == nil && fi.Mode().IsRegular() {
+					path = p
+					break
+				}
+			}
+			if path == "" {
+				return nil, fmt.Errorf("no git at %s", strings.Join(gitPaths, ", "))
+			}
+		case "security":
+			path = "/usr/bin/security"
+		default:
+			return nil, fmt.Errorf("doctor runs only git and security, not %q", name)
+		}
+		cmd := exec.CommandContext(ctx, path, args...)
+		cmd.Env = []string{"HOME=" + home, "PATH=/usr/bin:/bin", "GIT_TERMINAL_PROMPT=0", "GCM_INTERACTIVE=never"}
+		if rt := filepath.Join(runtimeDir, strconv.Itoa(uid)); runtimeDir != "" {
+			if fi, err := os.Stat(rt); err == nil && fi.IsDir() {
+				cmd.Env = append(cmd.Env, "XDG_RUNTIME_DIR="+rt)
+			}
+		}
+		cmd.Stdin = strings.NewReader(stdin)
+		cmd.WaitDelay = time.Second
+		out, err := cmd.Output()
+		var ee *exec.ExitError
+		if errors.As(err, &ee) {
+			return out, doctor.ExitError{Code: ee.ExitCode()}
+		}
+		return out, err
+	}
 }
 
 // userKeys reads an account's SSH keys anonymously; ghv-apply has no

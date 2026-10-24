@@ -7,10 +7,12 @@ import (
 	"fmt"
 	"net/url"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"slices"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/Sriram-PR/ghv/internal/doctor"
 	"github.com/Sriram-PR/ghv/internal/read"
@@ -50,7 +52,7 @@ func (a *app) doctorEnv() (doctor.Env, error) {
 		Getenv: a.getenv, EnvOf: "this process's environment", EnvPID: a.pid, Proc: a.proc, Runtime: a.runtimeDir, Tmp: a.tmpDir,
 		ApplyPaths: a.applyPaths(), TokenPath: a.tokenPath(), Scopes: a.tokenScopes,
 		AckFineGrained: a.inv.bool("ack-fine-grained"), Confirm: a.confirm,
-		Login: a.inv.str("login"), WhoAmI: a.whoAmI, UserKeys: a.userKeys,
+		Login: a.inv.str("login"), WhoAmI: a.whoAmI, UserKeys: a.userKeys, Exec: a.runProgram,
 	}
 	if e.Login != "" && !doctor.ValidLogin(e.Login) {
 		return doctor.Env{}, usagef("--login %s is not a GitHub login", e.Login)
@@ -138,6 +140,26 @@ func (a *app) userKeys(ctx context.Context, login string) ([]string, error) {
 		out[i] = k.Key
 	}
 	return out, nil
+}
+
+// runProgram runs git from PATH, or macOS's security, for doctor. git's
+// environment is gitEnv's, with Git Credential Manager's prompts off too.
+func runProgram(ctx context.Context, stdin, name string, args ...string) ([]byte, error) {
+	path := map[string]string{"git": "git", "security": "/usr/bin/security"}[name]
+	if path == "" {
+		return nil, fmt.Errorf("doctor runs only git and security, not %q", name)
+	}
+	cmd := exec.CommandContext(ctx, path, args...)
+	cmd.Env = append(gitEnv(os.Environ()), "GCM_INTERACTIVE=never")
+	cmd.Stdin = strings.NewReader(stdin)
+	// A helper may start a daemon that keeps stdout open.
+	cmd.WaitDelay = time.Second
+	out, err := cmd.Output()
+	var ee *exec.ExitError
+	if errors.As(err, &ee) {
+		return out, doctor.ExitError{Code: ee.ExitCode()}
+	}
+	return out, err
 }
 
 // confirmOnTTY asks on /dev/tty, never stdin, so the agent cannot answer.

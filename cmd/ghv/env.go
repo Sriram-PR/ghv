@@ -37,6 +37,7 @@ type env struct {
 	systemBin  string // where ghv-apply is installed: /usr/local/bin
 	lookupUser func(name string) (*user.User, error)
 	confirm    func(prompt string) (bool, error)
+	runProgram func(ctx context.Context, stdin, name string, args ...string) ([]byte, error)
 }
 
 // wait sleeps for d, or until ctx is done.

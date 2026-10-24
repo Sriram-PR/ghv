@@ -92,8 +92,19 @@ type Env struct {
 	WhoAmI   func(ctx context.Context) (string, error)
 	UserKeys func(ctx context.Context, login string) ([]string, error)
 
+	// Exec runs a program ("git", or "security" on macOS) with stdin and
+	// returns its stdout; each binary picks the path and the environment.
+	// A program that ran and failed is an ExitError. nil skips the checks
+	// that need one.
+	Exec func(ctx context.Context, stdin, name string, args ...string) ([]byte, error)
+
 	gh *githubKeys
 }
+
+// ExitError is a program that ran and exited with Code.
+type ExitError struct{ Code int }
+
+func (e ExitError) Error() string { return fmt.Sprintf("exit status %d", e.Code) }
 
 type check struct {
 	name string

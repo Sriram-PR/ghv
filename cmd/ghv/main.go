@@ -58,6 +58,7 @@ func main() {
 		systemBin:  "/usr/local/bin",
 		lookupUser: user.Lookup,
 		confirm:    confirmOnTTY,
+		runProgram: runProgram,
 	})
 	stop()
 	os.Exit(code)

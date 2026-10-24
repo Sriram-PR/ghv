@@ -43,6 +43,7 @@ type env struct {
 	tmpDir         string // "/tmp", or "/private/tmp" on macOS
 	executable     string
 	lookupUser     func(name string) (*user.User, error)
+	runProgram     func(ctx context.Context, stdin, name string, args ...string) ([]byte, error)
 }
 
 type command struct {
@@ -101,6 +102,7 @@ func main() {
 		tmpDir:     tmpDir,
 		executable: exe,
 		lookupUser: user.Lookup,
+		runProgram: programRunner(home, runtimeDir, os.Getuid(), gitPaths),
 	}))
 }
 

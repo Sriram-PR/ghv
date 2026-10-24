@@ -10,6 +10,7 @@ import (
 	"os"
 	"os/user"
 	"runtime"
+	"runtime/debug"
 	"slices"
 	"strconv"
 	"strings"
@@ -46,6 +47,7 @@ type env struct {
 	executable     string
 	lookupUser     func(name string) (*user.User, error)
 	runProgram     func(ctx context.Context, stdin, name string, args ...string) ([]byte, error)
+	buildInfo      func() (*debug.BuildInfo, bool) // nil: debug.ReadBuildInfo
 }
 
 type command struct {

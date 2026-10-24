@@ -328,7 +328,7 @@ func TestReviewRefusesAnUnsafeSharedQueue(t *testing.T) {
 	e.sharedRoot = t.TempDir()
 	queueDraft(t, e.home, draft.Draft{Repo: "o/r", CreatedAt: at(9), Fields: draft.CommentFields{Number: 7, Body: "hi"}})
 	r := runWith(e)
-	want := "ghv-apply: the shared queue at " + e.sharedRoot + " is not safe to use: " + e.sharedRoot + " belongs to uid " + strconv.Itoa(os.Getuid()) + ", not root; sudo chown root:root " + e.sharedRoot + "\n"
+	want := "ghv-apply: the shared queue at " + e.sharedRoot + " is not safe to use: " + e.sharedRoot + " belongs to uid " + strconv.Itoa(os.Getuid()) + ", not root; sudo chown root " + e.sharedRoot + "\n"
 	if r.code != 1 || r.stderr != want || ft.out.String() != "" {
 		t.Fatalf("exit %d, stderr %q, terminal %q", r.code, r.stderr, ft.out.String())
 	}

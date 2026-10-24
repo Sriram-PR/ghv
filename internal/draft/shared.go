@@ -97,7 +97,7 @@ func checkShared(root string, owner int) (uint32, error) {
 	case !st.mode.IsDir():
 		return 0, fmt.Errorf("%s is not a directory", root)
 	case st.uid != uint32(owner):
-		return 0, fmt.Errorf("%s belongs to uid %d, not root; sudo chown root:root %s", root, st.uid, root)
+		return 0, fmt.Errorf("%s belongs to uid %d, not root; sudo chown root %s", root, st.uid, root)
 	case st.perm&0o022 != 0:
 		return 0, fmt.Errorf("%s can be changed by users other than root; sudo chmod 755 %s", root, root)
 	}

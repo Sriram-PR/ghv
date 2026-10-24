@@ -236,7 +236,7 @@ func TestDraftingRefusesAnUnsafeSharedQueue(t *testing.T) {
 	e, _, _ := testEnv(t, noNetwork(t))
 	e.sharedRoot = t.TempDir()
 	writeFile(t, filepath.Join(e.dir, "b.md"), "body\n")
-	want := "ghv: the shared queue at " + e.sharedRoot + " is not safe to use: " + e.sharedRoot + " belongs to uid " + strconv.Itoa(os.Getuid()) + ", not root; sudo chown root:root " + e.sharedRoot + "\n"
+	want := "ghv: the shared queue at " + e.sharedRoot + " is not safe to use: " + e.sharedRoot + " belongs to uid " + strconv.Itoa(os.Getuid()) + ", not root; sudo chown root " + e.sharedRoot + "\n"
 	for _, args := range [][]string{
 		{"issue", "create", "-R", "o/r", "--title", "T", "--body-file", "b.md"},
 		{"drafts"},

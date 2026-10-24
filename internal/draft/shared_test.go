@@ -120,7 +120,7 @@ func TestLocateRefusesAnUnsafeSharedQueue(t *testing.T) {
 	}
 	root := sharedLayout(t)
 	if _, err := locate(root, t.TempDir(), os.Getuid()+1); err == nil ||
-		err.Error() != "the shared queue at "+root+" is not safe to use: "+root+" belongs to uid "+uid+", not root; sudo chown root:root "+root {
+		err.Error() != "the shared queue at "+root+" is not safe to use: "+root+" belongs to uid "+uid+", not root; sudo chown root "+root {
 		t.Errorf("owner: %v", err)
 	}
 }

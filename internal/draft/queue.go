@@ -26,8 +26,8 @@ var stateDirs = map[State]string{
 	Rejected: "rejected",
 }
 
-// Queue is the draft store at Root (~/.local/share/ghv). ghv-apply resolves
-// Root from the passwd entry, never from $HOME.
+// Queue is the draft store at Root: the shared queue, or the home queue
+// (~/.local/share/ghv) under the passwd home, never $HOME. Locate picks it.
 type Queue struct {
 	Root   string
 	shared bool

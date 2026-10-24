@@ -20,6 +20,7 @@ var ghvAllowed = []string{
 	"internal/sanitize",
 	"internal/archive",
 	"internal/doctor",
+	"internal/buildinfo",
 }
 
 var applyThirdParty = []string{
@@ -28,7 +29,7 @@ var applyThirdParty = []string{
 	"golang.org/x/sys",
 }
 
-var shared = []string{"internal/draft", "internal/sanitize", "internal/doctor"}
+var shared = []string{"internal/draft", "internal/sanitize", "internal/doctor", "internal/buildinfo"}
 
 var sharedForbidden = []string{
 	"internal/read",

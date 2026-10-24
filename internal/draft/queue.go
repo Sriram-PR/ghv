@@ -29,7 +29,9 @@ var stateDirs = map[State]string{
 // Queue is the draft store at Root (~/.local/share/ghv). ghv-apply resolves
 // Root from the passwd entry, never from $HOME.
 type Queue struct {
-	Root string
+	Root   string
+	shared bool
+	gid    uint32
 }
 
 func (q Queue) Dir(s State) string { return filepath.Join(q.Root, stateDirs[s]) }

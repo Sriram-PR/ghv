@@ -53,6 +53,29 @@ func (q Queue) Group() string {
 	return groupName(q.gid)
 }
 
+// fileMode is the mode of new drafts and outcomes: group-readable in the
+// shared queue, so the human reads the agent's drafts and the agent reads
+// the human's outcomes.
+func (q Queue) fileMode() os.FileMode {
+	if q.shared {
+		return 0o640
+	}
+	return 0o600
+}
+
+// permission explains a refusal in the shared queue, which is most often
+// a group membership that has not taken effect yet.
+func (q Queue) permission(err error) error {
+	if err == nil || !q.shared || !errors.Is(err, fs.ErrPermission) {
+		return err
+	}
+	name := strconv.Itoa(os.Getuid())
+	if u, err := user.LookupId(name); err == nil {
+		name = u.Username
+	}
+	return fmt.Errorf("cannot write to the shared queue at %s: permission denied; is %s in group %s? Log out and in after adding them", q.Root, name, q.Group())
+}
+
 func groupName(gid uint32) string {
 	id := strconv.FormatUint(uint64(gid), 10)
 	if g, err := user.LookupGroupId(id); err == nil {

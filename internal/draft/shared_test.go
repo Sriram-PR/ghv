@@ -7,6 +7,7 @@ import (
 	"path/filepath"
 	"strconv"
 	"strings"
+	"syscall"
 	"testing"
 )
 
@@ -121,5 +122,79 @@ func TestLocateRefusesAnUnsafeSharedQueue(t *testing.T) {
 	if _, err := locate(root, t.TempDir(), os.Getuid()+1); err == nil ||
 		err.Error() != "the shared queue at "+root+" is not safe to use: "+root+" belongs to uid "+uid+", not root; sudo chown root:root "+root {
 		t.Errorf("owner: %v", err)
+	}
+}
+
+func sharedQueue(t *testing.T) Queue {
+	t.Helper()
+	q, err := locate(sharedLayout(t), t.TempDir(), os.Getuid())
+	if err != nil {
+		t.Fatal(err)
+	}
+	return q
+}
+
+// fullMode is a path's permission, setuid, setgid, and sticky bits.
+func fullMode(t *testing.T, p string) uint32 {
+	t.Helper()
+	st, err := lstat(p)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return st.perm
+}
+
+func TestSharedQueueFilesAreGroupReadable(t *testing.T) {
+	old := syscall.Umask(0o077)
+	defer syscall.Umask(old)
+	q := sharedQueue(t)
+	id, err := q.Write(golden["comment"])
+	if err != nil {
+		t.Fatal(err)
+	}
+	p := filepath.Join(q.Dir(Pending), id+".json")
+	if m := fullMode(t, p); m != 0o640 {
+		t.Fatalf("draft mode %04o, want 0640", m)
+	}
+	if err := q.Move(id, Pending, Rejected, sumOf(t, q, id, Pending), Outcome{Reason: "no"}); err != nil {
+		t.Fatal(err)
+	}
+	if m := fullMode(t, filepath.Join(q.Dir(Rejected), id+".outcome.json")); m != 0o640 {
+		t.Fatalf("outcome mode %04o, want 0640", m)
+	}
+	for _, s := range sharedStates {
+		if m := fullMode(t, filepath.Join(q.Root, s)); m != 0o2770 {
+			t.Errorf("%s changed to %04o", s, m)
+		}
+	}
+	l, err := q.Lock()
+	if err != nil {
+		t.Fatal(err)
+	}
+	l.Release()
+	if m := fullMode(t, filepath.Join(q.Root, "lock")); m != 0o660 {
+		t.Errorf("lock changed to %04o", m)
+	}
+}
+
+func TestSharedQueuePermissionHint(t *testing.T) {
+	q := sharedQueue(t)
+	u, err := user.Current()
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := "cannot write to the shared queue at " + q.Root + ": permission denied; is " + u.Username + " in group " + testGroup(t) + "? Log out and in after adding them"
+	if err := os.Chmod(q.Dir(Pending), fs.ModeSetgid|0o550); err != nil {
+		t.Fatal(err)
+	}
+	defer os.Chmod(q.Dir(Pending), fs.ModeSetgid|0o770)
+	if _, err := q.Write(golden["comment"]); err == nil || err.Error() != want {
+		t.Errorf("Write: %v", err)
+	}
+	if err := os.Chmod(filepath.Join(q.Root, "lock"), 0o440); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := q.Lock(); err == nil || err.Error() != want {
+		t.Errorf("Lock: %v", err)
 	}
 }

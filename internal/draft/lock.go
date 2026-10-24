@@ -23,6 +23,11 @@ type Lock struct {
 // crashed session never leaves a stale lock. The file holds the PID only to
 // name the holder in ErrLocked.
 func (q Queue) Lock() (*Lock, error) {
+	l, err := q.lock()
+	return l, q.permission(err)
+}
+
+func (q Queue) lock() (*Lock, error) {
 	if _, err := q.ensureDir(Pending); err != nil {
 		return nil, err
 	}

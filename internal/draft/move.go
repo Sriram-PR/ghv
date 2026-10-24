@@ -47,6 +47,10 @@ var ErrChanged = errors.New("the draft file changed after ghv-apply read it")
 // check keeps the queue a true record and catches an edit made during
 // review.
 func (q Queue) Move(id string, from, to State, sum [32]byte, o Outcome) error {
+	return q.permission(q.move(id, from, to, sum, o))
+}
+
+func (q Queue) move(id string, from, to State, sum [32]byte, o Outcome) error {
 	if !idRE.MatchString(id) {
 		return invalid("bad draft ID %q", id)
 	}
@@ -76,12 +80,12 @@ func (q Queue) Move(id string, from, to State, sum [32]byte, o Outcome) error {
 	}
 	// The draft has moved; a leftover sidecar in the old directory is harmless.
 	os.Remove(outcomePath(q.Dir(from), id))
-	return writeOutcome(dstDir, id, o)
+	return writeOutcome(dstDir, id, o, q.fileMode())
 }
 
 func outcomePath(dir, id string) string { return filepath.Join(dir, id+".outcome.json") }
 
-func writeOutcome(dir, id string, o Outcome) error {
+func writeOutcome(dir, id string, o Outcome, mode os.FileMode) error {
 	data, err := json.Marshal(o)
 	if err != nil {
 		return err
@@ -91,6 +95,10 @@ func writeOutcome(dir, id string, o Outcome) error {
 		return err
 	}
 	defer os.Remove(tmp.Name())
+	if err := tmp.Chmod(mode); err != nil {
+		tmp.Close()
+		return err
+	}
 	if _, err := tmp.Write(data); err != nil {
 		tmp.Close()
 		return err

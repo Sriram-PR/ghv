@@ -37,6 +37,10 @@ type Queue struct {
 func (q Queue) Dir(s State) string { return filepath.Join(q.Root, stateDirs[s]) }
 
 func (q Queue) ensureDir(s State) (string, error) {
+	// Setup made the shared queue's directories, and Locate checked them.
+	if q.shared {
+		return q.Dir(s), nil
+	}
 	if err := os.MkdirAll(filepath.Dir(q.Root), 0o700); err != nil {
 		return "", err
 	}
@@ -62,6 +66,11 @@ func (q Queue) ensureDir(s State) (string, error) {
 // at all: it is written to a temp file, then hard-linked into place, which
 // also refuses to replace an existing draft.
 func (q Queue) Write(d Draft) (string, error) {
+	id, err := q.write(d)
+	return id, q.permission(err)
+}
+
+func (q Queue) write(d Draft) (string, error) {
 	data, err := Encode(d)
 	if err != nil {
 		return "", err
@@ -81,6 +90,10 @@ func (q Queue) Write(d Draft) (string, error) {
 		return "", err
 	}
 	defer os.Remove(tmp.Name())
+	if err := tmp.Chmod(q.fileMode()); err != nil {
+		tmp.Close()
+		return "", err
+	}
 	if _, err := tmp.Write(data); err != nil {
 		tmp.Close()
 		return "", err

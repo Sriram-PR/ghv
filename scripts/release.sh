@@ -24,7 +24,9 @@ fi
 # different bytes than CI.
 GOTOOLCHAIN=$(sed -n 's/^toolchain //p' go.mod)
 CGO_ENABLED=0
-export GOTOOLCHAIN CGO_ENABLED
+# The ghv* glob sorts by the locale's collation; macOS puts _ before -.
+LC_ALL=C
+export GOTOOLCHAIN CGO_ENABLED LC_ALL
 
 out=dist/$tag
 rm -rf "$out"

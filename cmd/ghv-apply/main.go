@@ -124,25 +124,8 @@ func run(ctx context.Context, args []string, e env) int {
 		if c.name != args[0] {
 			continue
 		}
-		rest := args[1:]
-		for i := 0; i < len(rest); i++ {
-			a := rest[i]
-			if slices.Contains(c.flags, a) {
-				continue
-			}
-			if slices.Contains(c.values, a) {
-				if i+1 == len(rest) {
-					fmt.Fprintf(e.stderr, "ghv-apply: %s %s needs a value\n", c.name, a)
-					return 2
-				}
-				i++
-				continue
-			}
-			if len(c.flags)+len(c.values) == 0 {
-				fmt.Fprintf(e.stderr, "ghv-apply: %s takes no arguments\n", c.name)
-			} else {
-				fmt.Fprintf(e.stderr, "ghv-apply: %s takes only %s\n", c.name, c.usage())
-			}
+		if msg := c.checkArgs(args[1:]); msg != "" {
+			fmt.Fprintln(e.stderr, "ghv-apply: "+msg)
 			return 2
 		}
 		e.args = args[1:]
@@ -150,6 +133,29 @@ func run(ctx context.Context, args []string, e env) int {
 	}
 	fmt.Fprintf(e.stderr, "ghv-apply: unknown command %q; run ghv-apply --help\n", sanitize.Line(args[0]))
 	return 2
+}
+
+// checkArgs is the usage error for rest, the arguments after c's name, or
+// "": each must be one of c's flags, or a value flag and its value.
+func (c command) checkArgs(rest []string) string {
+	for i := 0; i < len(rest); i++ {
+		a := rest[i]
+		if slices.Contains(c.flags, a) {
+			continue
+		}
+		if slices.Contains(c.values, a) {
+			if i+1 == len(rest) {
+				return fmt.Sprintf("%s %s needs a value", c.name, a)
+			}
+			i++
+			continue
+		}
+		if len(c.flags)+len(c.values) == 0 {
+			return c.name + " takes no arguments"
+		}
+		return fmt.Sprintf("%s takes only %s", c.name, c.usage())
+	}
+	return ""
 }
 
 // usage lists the command's flags, a value flag as FLAG VALUE.

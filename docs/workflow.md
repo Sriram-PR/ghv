@@ -66,7 +66,7 @@ Read the commits before you push. This is the only place the agent's code reache
 ghv pr create -R owner/project --head you:fix/parser-crash --title "Fix a crash on empty input" --body-file pr-body.md
 ```
 
-The draft pins the branch's current commit. If you push again before sending it, `ghv-apply` refuses the stale draft (`HEAD has moved from A to B since you reviewed it`) and the agent drafts it again.
+The draft pins the branch's current commit. If you push again before sending it, `ghv-apply` blocks the stale draft (`you:fix/parser-crash has moved from A to B since the draft was made; ask for a new draft`) and the agent drafts it again.
 
 Run `ghv-apply` again. A pull request's preview shows its code; press `d` for the full diff.
 

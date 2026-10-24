@@ -49,6 +49,7 @@ func TestDoctorContained(t *testing.T) {
 	want := "What this process can reach, running as agent (uid 1001); the human is sriram:\n\n" +
 		"INFO    proxy      HTTPS_PROXY set in the environment of ghv-apply's parent, pid 77: ghv-apply ignores it; other tools send their traffic through it\n" +
 		"INFO    ghv-apply  no ghv-apply found to check\n" +
+		"INFO    queue      drafts go to " + filepath.Join(e.home, ".local", "share", "ghv") + ", which sriram's ghv-apply does not read; set up the shared queue (docs/containment.md)\n" +
 		"\nVerdict: Contained (no HIGH findings).\n"
 	if r.code != 0 || r.stdout != want || r.stderr != "" {
 		t.Fatalf("exit %d, stderr %q, stdout:\n%s", r.code, r.stderr, r.stdout)

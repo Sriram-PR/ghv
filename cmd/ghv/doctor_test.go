@@ -43,6 +43,7 @@ func TestDoctorContained(t *testing.T) {
 	r := runWith(t, registry, e, "doctor", "--human-user", "sriram")
 	want := "What this process can reach, running as agent (uid 1001); the human is sriram:\n\n" +
 		"INFO    ghv-apply  no ghv-apply found to check\n" +
+		"INFO    queue      drafts go to " + filepath.Join(e.passwdHome, ".local", "share", "ghv") + ", which sriram's ghv-apply does not read; set up the shared queue (docs/containment.md)\n" +
 		"\nVerdict: Contained (no HIGH findings).\n"
 	if r.code != 0 || r.stdout != want || r.stderr != "" || *calls != 1 {
 		t.Fatalf("exit %d, %d calls, stderr %q, stdout:\n%s", r.code, *calls, r.stderr, r.stdout)

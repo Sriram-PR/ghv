@@ -73,6 +73,9 @@ type Env struct {
 	// Writable reports whether this process can change path; nil uses
 	// the kernel's answer.
 	Writable func(path string) bool
+	// SharedRoot is where the shared queue would be (draft.SharedRoot);
+	// "" for none.
+	SharedRoot string
 	// ApplyPaths are the ghv-apply binaries to check.
 	ApplyPaths []string
 	// TokenPath is the read token file; its acknowledgement sits beside it.

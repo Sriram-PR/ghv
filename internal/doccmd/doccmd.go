@@ -26,6 +26,7 @@ var shipped = []string{
 	"docs/containment.md",
 	"docs/smoke-test.md",
 	"docs/workflow.md",
+	"skills/ghv/SKILL.md",
 }
 
 // Shipped extracts the command lines of every shipped doc under root.

@@ -32,6 +32,8 @@ type env struct {
 	uid, pid   int
 	username   string
 	proc       string // "/proc", or "" where there is none
+	runtimeDir string // "/run/user" on Linux, else ""
+	tmpDir     string // "/tmp", or "/private/tmp" on macOS
 	systemBin  string // where ghv-apply is installed: /usr/local/bin
 	lookupUser func(name string) (*user.User, error)
 	confirm    func(prompt string) (bool, error)

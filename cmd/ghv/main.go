@@ -29,9 +29,9 @@ func main() {
 	if u, err := user.LookupId(strconv.Itoa(os.Getuid())); err == nil {
 		passwdHome, username = u.HomeDir, u.Username
 	}
-	proc := ""
+	proc, runtimeDir, tmpDir := "", "", "/private/tmp"
 	if runtime.GOOS == "linux" {
-		proc = "/proc"
+		proc, runtimeDir, tmpDir = "/proc", "/run/user", "/tmp"
 	}
 	dir, err := os.Getwd()
 	if err != nil {
@@ -53,6 +53,8 @@ func main() {
 		pid:        os.Getpid(),
 		username:   username,
 		proc:       proc,
+		runtimeDir: runtimeDir,
+		tmpDir:     tmpDir,
 		systemBin:  "/usr/local/bin",
 		lookupUser: user.Lookup,
 		confirm:    confirmOnTTY,

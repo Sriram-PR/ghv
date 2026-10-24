@@ -47,7 +47,7 @@ func runDoctor(ctx context.Context, a *app) error {
 func (a *app) doctorEnv() (doctor.Env, error) {
 	e := doctor.Env{
 		GOOS: a.goos, UID: a.uid, User: a.username, Home: a.passwdHome, PID: a.pid,
-		Getenv: a.getenv, EnvOf: "this process's environment", EnvPID: a.pid, Proc: a.proc,
+		Getenv: a.getenv, EnvOf: "this process's environment", EnvPID: a.pid, Proc: a.proc, Runtime: a.runtimeDir, Tmp: a.tmpDir,
 		ApplyPaths: a.applyPaths(), TokenPath: a.tokenPath(), Scopes: a.tokenScopes,
 		AckFineGrained: a.inv.bool("ack-fine-grained"), Confirm: a.confirm,
 		Login: a.inv.str("login"), WhoAmI: a.whoAmI, UserKeys: a.userKeys,

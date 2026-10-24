@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/base64"
 	"errors"
+	"fmt"
 	"regexp"
 	"strings"
 )
@@ -71,4 +72,26 @@ func (e *Env) onGitHub(ctx context.Context, blob []byte) string {
 		return "; registered on GitHub for " + g.login
 	}
 	return "; not among " + g.login + "'s keys on GitHub (deploy keys and other accounts' keys cannot be listed)"
+}
+
+// countOnGitHub says how many of blobs are the account's keys, as a
+// clause to add to a finding; "" when GitHub reads are not set up here.
+func (e *Env) countOnGitHub(ctx context.Context, blobs [][]byte) string {
+	if e.UserKeys == nil {
+		return ""
+	}
+	g := e.gitHub(ctx)
+	if g.err != nil {
+		return "; not compared with GitHub: " + g.err.Error()
+	}
+	n := 0
+	for _, b := range blobs {
+		if g.fps[sshFingerprint(b)] {
+			n++
+		}
+	}
+	if n == 0 {
+		return "; none of them registered on GitHub for " + g.login
+	}
+	return fmt.Sprintf("; %d of them registered on GitHub for %s", n, g.login)
 }

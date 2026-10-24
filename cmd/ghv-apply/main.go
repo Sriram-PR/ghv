@@ -39,6 +39,8 @@ type env struct {
 	uid, pid, ppid int
 	username       string
 	proc           string // "/proc", or "" where there is none
+	runtimeDir     string // "/run/user" on Linux, else ""
+	tmpDir         string // "/tmp", or "/private/tmp" on macOS
 	executable     string
 	lookupUser     func(name string) (*user.User, error)
 }
@@ -70,9 +72,9 @@ func main() {
 	if u, err := user.LookupId(strconv.Itoa(os.Getuid())); err == nil {
 		username = u.Username
 	}
-	proc := ""
+	proc, runtimeDir, tmpDir := "", "", "/private/tmp"
 	if runtime.GOOS == "linux" {
-		proc = "/proc"
+		proc, runtimeDir, tmpDir = "/proc", "/run/user", "/tmp"
 	}
 	exe, _ := os.Executable()
 	os.Exit(run(context.Background(), os.Args[1:], env{
@@ -95,6 +97,8 @@ func main() {
 		ppid:       os.Getppid(),
 		username:   username,
 		proc:       proc,
+		runtimeDir: runtimeDir,
+		tmpDir:     tmpDir,
 		executable: exe,
 		lookupUser: user.Lookup,
 	}))

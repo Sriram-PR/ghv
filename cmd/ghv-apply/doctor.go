@@ -45,7 +45,7 @@ func runDoctor(ctx context.Context, e env) error {
 // user's, from the passwd home.
 func doctorEnv(e env) (doctor.Env, error) {
 	de := doctor.Env{
-		GOOS: e.goos, UID: e.uid, User: e.username, Home: e.home, PID: e.pid, Proc: e.proc,
+		GOOS: e.goos, UID: e.uid, User: e.username, Home: e.home, PID: e.pid, Proc: e.proc, Runtime: e.runtimeDir, Tmp: e.tmpDir,
 		TokenPath:      filepath.Join(e.home, ".config", "ghv", "read-token"),
 		Scopes:         func(ctx context.Context, tok string) ([]string, bool, error) { return tokenScopes(ctx, e.client, tok) },
 		AckFineGrained: slices.Contains(e.args, "--ack-fine-grained"),

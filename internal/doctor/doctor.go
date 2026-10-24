@@ -65,6 +65,11 @@ type Env struct {
 	EnvErr error
 	EnvPID int    // the process Getenv reads; the /proc scan skips it
 	Proc   string // "/proc", or "" where there is none
+	// Runtime holds each user's runtime directory ("/run/user" on Linux),
+	// and Tmp is where ssh-agent and launchd put sockets ("/tmp", or
+	// "/private/tmp" on macOS); "" skips them.
+	Runtime string
+	Tmp     string
 	// Writable reports whether this process can change path; nil uses
 	// the kernel's answer.
 	Writable func(path string) bool

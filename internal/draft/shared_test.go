@@ -1,6 +1,7 @@
 package draft
 
 import (
+	"errors"
 	"io/fs"
 	"os"
 	"os/user"
@@ -196,5 +197,20 @@ func TestSharedQueuePermissionHint(t *testing.T) {
 	}
 	if _, err := q.Lock(); err == nil || err.Error() != want {
 		t.Errorf("Lock: %v", err)
+	}
+}
+
+func TestSharedQueueLockIsNotMade(t *testing.T) {
+	q := sharedQueue(t)
+	lock := filepath.Join(q.Root, "lock")
+	if err := os.Remove(lock); err != nil {
+		t.Fatal(err)
+	}
+	if l, err := q.Lock(); err == nil {
+		l.Release()
+		t.Fatal("Lock made a missing lock file")
+	}
+	if _, err := os.Lstat(lock); !errors.Is(err, fs.ErrNotExist) {
+		t.Fatalf("lock: %v", err)
 	}
 }

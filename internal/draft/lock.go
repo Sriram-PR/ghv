@@ -32,7 +32,12 @@ func (q Queue) lock() (*Lock, error) {
 		return nil, err
 	}
 	path := filepath.Join(q.Root, "lock")
-	fd, err := syscall.Open(path, syscall.O_RDWR|syscall.O_CREAT|syscall.O_NOFOLLOW|syscall.O_NONBLOCK|syscall.O_CLOEXEC, 0o600)
+	flags := syscall.O_RDWR | syscall.O_NOFOLLOW | syscall.O_NONBLOCK | syscall.O_CLOEXEC
+	// Setup made the shared queue's lock, and Locate checked it.
+	if !q.shared {
+		flags |= syscall.O_CREAT
+	}
+	fd, err := syscall.Open(path, flags, 0o600)
 	if errors.Is(err, syscall.ELOOP) {
 		return nil, fmt.Errorf("%s is a symlink", path)
 	}

@@ -39,7 +39,7 @@ func unprotectedKeys(e *Env) []sshKey {
 		var paths []string
 		if ents, err := os.ReadDir(dir); err == nil {
 			for _, ent := range ents {
-				if n := ent.Name(); ent.Type().IsRegular() && !strings.HasSuffix(n, ".pub") {
+				if n := ent.Name(); (ent.Type().IsRegular() || ent.Type()&os.ModeSymlink != 0) && !strings.HasSuffix(n, ".pub") {
 					paths = append(paths, filepath.Join(dir, n))
 				}
 			}

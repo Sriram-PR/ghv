@@ -8,8 +8,10 @@ import (
 	"encoding/binary"
 	"encoding/hex"
 	"encoding/pem"
+	"os"
 	"path/filepath"
 	"strings"
+	"syscall"
 	"testing"
 )
 
@@ -91,5 +93,24 @@ func TestSSHKeys(t *testing.T) {
 	}
 	if fs[0].Fix != "add a passphrase: ssh-keygen -p -f "+p(home, ".ssh/broken_dsa")+"; or delete the key, and remove it at https://github.com/settings/keys if it is there" {
 		t.Fatalf("fix: %s", fs[0].Fix)
+	}
+}
+
+func TestSSHKeysFollowsSymlinks(t *testing.T) {
+	home := t.TempDir()
+	plant(t, home, map[string]string{"dotfiles/key": opensshKey("none", ed25519Blob(5))})
+	os.Mkdir(filepath.Join(home, ".ssh"), 0o700)
+	for name, target := range map[string]string{"linked": "../dotfiles/key", "dir": "../dotfiles", "gone": "../nowhere"} {
+		if err := os.Symlink(target, filepath.Join(home, ".ssh", name)); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if err := syscall.Mkfifo(filepath.Join(home, "fifo"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	os.Symlink("../fifo", filepath.Join(home, ".ssh", "fifo"))
+	want := "HIGH " + filepath.Join(home, ".ssh/linked") + " has no passphrase (ssh-ed25519 " + fingerprint(ed25519Blob(5)) + ")\n"
+	if got := details(sshKeys(context.Background(), &Env{Home: home})); got != want {
+		t.Fatalf("got:\n%s\nwant:\n%s", got, want)
 	}
 }

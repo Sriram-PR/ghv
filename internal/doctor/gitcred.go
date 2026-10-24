@@ -69,7 +69,7 @@ func gitHelpers(ctx context.Context, e *Env) []string {
 	for l := range strings.Lines(string(out)) {
 		key, val, _ := strings.Cut(strings.TrimRight(l, "\n"), " ")
 		// credential.helper, or credential.<url>.helper
-		if url := strings.TrimSuffix(strings.TrimPrefix(key, "credential."), "helper"); url != "" && !strings.Contains(url, "github.com") {
+		if url := strings.TrimSuffix(strings.TrimPrefix(key, "credential."), "helper"); url != "" && !isGitHubHost(helperHost(url)) {
 			continue
 		}
 		f := strings.Fields(strings.TrimPrefix(strings.TrimSpace(val), "!"))
@@ -85,4 +85,19 @@ func gitHelpers(ctx context.Context, e *Env) []string {
 		}
 	}
 	return names
+}
+
+// helperHost is the host in a credential.<url>.helper key's url, given
+// with its trailing dot: [scheme://][user@]host[:port][/path].
+func helperHost(url string) string {
+	url = strings.TrimSuffix(url, ".")
+	if _, rest, ok := strings.Cut(url, "://"); ok {
+		url = rest
+	}
+	url, _, _ = strings.Cut(url, "/")
+	if i := strings.LastIndex(url, "@"); i >= 0 {
+		url = url[i+1:]
+	}
+	url, _, _ = strings.Cut(url, ":")
+	return url
 }

@@ -47,7 +47,10 @@ func TestGitCredentialFill(t *testing.T) {
 		"credential.https://github.com.helper !/usr/bin/gh auth git-credential\n" +
 		"credential.https://gitlab.com.helper libsecret\n" +
 		"credential.helper !f() { echo password=" + pass + "; }; f\n" +
-		"credential.helper store\n"}
+		"credential.helper store\n" +
+		"credential.https://notgithub.com.helper cache\n" +
+		"credential.https://github.com.evil.example.helper osxkeychain\n" +
+		"credential.https://octo@github.com:443/octo.helper manager\n"}
 	noHelpers := execReply{err: ExitError{Code: 1}}
 	for _, c := range []struct {
 		name   string
@@ -55,9 +58,9 @@ func TestGitCredentialFill(t *testing.T) {
 		config execReply
 		want   string
 	}{
-		{"a password", filled, helpers, "HIGH git credential fill returns a password for https://github.com (credential helpers: store, gh, a custom helper)\n"},
+		{"a password", filled, helpers, "HIGH git credential fill returns a password for https://github.com (credential helpers: store, gh, a custom helper, manager)\n"},
 		{"a password, helpers unknown", filled, noHelpers, "HIGH git credential fill returns a password for https://github.com\n"},
-		{"helpers, no password", none, helpers, "INFO git credential helpers are set (store, gh, a custom helper), but none returned a password for https://github.com\n"},
+		{"helpers, no password", none, helpers, "INFO git credential helpers are set (store, gh, a custom helper, manager), but none returned a password for https://github.com\n"},
 		{"nothing", none, noHelpers, ""},
 		{"no git", &execReply{err: errors.New(`exec: "git": executable file not found in $PATH`)}, noHelpers,
 			"INFO git credential fill could not run: exec: \"git\": executable file not found in $PATH\n"},

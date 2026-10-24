@@ -47,7 +47,7 @@ var ErrChanged = errors.New("the draft file changed after ghv-apply read it")
 // check keeps the queue a true record and catches an edit made during
 // review.
 func (q Queue) Move(id string, from, to State, sum [32]byte, o Outcome) error {
-	return q.permission(q.move(id, from, to, sum, o))
+	return q.permission(q.move(id, from, to, sum, o), "write to")
 }
 
 func (q Queue) move(id string, from, to State, sum [32]byte, o Outcome) error {
@@ -128,6 +128,11 @@ func readOutcome(dir, id string) *Outcome {
 }
 
 func (q Queue) List() ([]Entry, error) {
+	out, err := q.list()
+	return out, q.permission(err, "read")
+}
+
+func (q Queue) list() ([]Entry, error) {
 	var out []Entry
 	for _, s := range []State{Pending, Unknown, Applied, Rejected} {
 		ents, err := os.ReadDir(q.Dir(s))

@@ -67,7 +67,7 @@ func (q Queue) ensureDir(s State) (string, error) {
 // also refuses to replace an existing draft.
 func (q Queue) Write(d Draft) (string, error) {
 	id, err := q.write(d)
-	return id, q.permission(err)
+	return id, q.permission(err, "write to")
 }
 
 func (q Queue) write(d Draft) (string, error) {

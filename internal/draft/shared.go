@@ -65,7 +65,7 @@ func (q Queue) fileMode() os.FileMode {
 
 // permission explains a refusal in the shared queue, which is most often
 // a group membership that has not taken effect yet.
-func (q Queue) permission(err error) error {
+func (q Queue) permission(err error, verb string) error {
 	if err == nil || !q.shared || !errors.Is(err, fs.ErrPermission) {
 		return err
 	}
@@ -73,7 +73,7 @@ func (q Queue) permission(err error) error {
 	if u, err := user.LookupId(name); err == nil {
 		name = u.Username
 	}
-	return fmt.Errorf("cannot write to the shared queue at %s: permission denied; is %s in group %s? Log out and in after adding them", q.Root, name, q.Group())
+	return fmt.Errorf("cannot %s the shared queue at %s: permission denied; is %s in group %s? Log out and in after adding them", verb, q.Root, name, q.Group())
 }
 
 func groupName(gid uint32) string {

@@ -198,6 +198,14 @@ func TestSharedQueuePermissionHint(t *testing.T) {
 	if _, err := q.Lock(); err == nil || err.Error() != want {
 		t.Errorf("Lock: %v", err)
 	}
+	if err := os.Chmod(q.Dir(Applied), fs.ModeSetgid|0o330); err != nil {
+		t.Fatal(err)
+	}
+	defer os.Chmod(q.Dir(Applied), fs.ModeSetgid|0o770)
+	want = strings.Replace(want, "cannot write to", "cannot read", 1)
+	if _, err := q.List(); err == nil || err.Error() != want {
+		t.Errorf("List: %v", err)
+	}
 }
 
 func TestSharedQueueLockIsNotMade(t *testing.T) {

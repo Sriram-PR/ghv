@@ -24,7 +24,7 @@ type Lock struct {
 // name the holder in ErrLocked.
 func (q Queue) Lock() (*Lock, error) {
 	l, err := q.lock()
-	return l, q.permission(err)
+	return l, q.permission(err, "write to")
 }
 
 func (q Queue) lock() (*Lock, error) {

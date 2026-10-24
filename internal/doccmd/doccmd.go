@@ -21,6 +21,7 @@ type Line struct {
 // shipped are the docs, from the repository root, whose command lines
 // must parse.
 var shipped = []string{
+	"README.md",
 	"SECURITY.md",
 	"docs/containment.md",
 	"docs/smoke-test.md",

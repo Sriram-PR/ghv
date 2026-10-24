@@ -52,7 +52,11 @@ func keyring(ctx context.Context, e *Env) []Finding {
 			state = "they are unlocked"
 		}
 		if locked > 0 {
-			state = fmt.Sprintf("%d %s locked, but asking for one can show you an unlock prompt", locked, map[bool]string{true: "is", false: "are"}[locked == 1])
+			verb := "are"
+			if locked == 1 {
+				verb = "is"
+			}
+			state = fmt.Sprintf("%d %s locked, but asking for one can show you an unlock prompt", locked, verb)
 		}
 		out = append(out, Finding{Severity: High,
 			Detail: fmt.Sprintf("the keyring (Secret Service) on the session bus at %s holds %s for github.com: %s; %s", bus, plural(total, "item", "items"), strings.Join(parts, ", "), state),

@@ -53,3 +53,13 @@ func TestDoctorSSHKeysOnGitHub(t *testing.T) {
 		t.Fatalf("exit %d, stderr %q", r.code, r.stderr)
 	}
 }
+
+func TestDoctorSSHKeysOnGitHubPaginates(t *testing.T) {
+	e, f := doctorTestEnv(t, "")
+	key := plantSSHKey(t, e.home)
+	f.routes["/users/octo/keys?per_page=100"] = apiReply{status: 200, body: "[" + strings.Repeat(`{"key":"ssh-ed25519 AAAA"},`, 99) + `{"key":"ssh-ed25519 AAAA"}]`}
+	f.routes["/users/octo/keys?per_page=100&page=2"] = apiReply{status: 200, body: `[{"key":"` + key + `"}]`}
+	if r := runWith(e, "doctor", "--human-user", "sriram", "--login", "octo"); !strings.Contains(r.stdout, "; registered on GitHub for octo\n") || len(f.reqs) != 3 {
+		t.Fatalf("exit %d, %d requests, stderr %q, stdout:\n%s", r.code, len(f.reqs), r.stderr, r.stdout)
+	}
+}

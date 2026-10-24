@@ -75,3 +75,26 @@ func TestDoctorSSHKeysOnGitHub(t *testing.T) {
 		t.Fatalf("exit %d, stderr %q", r.code, r.stderr)
 	}
 }
+
+func TestDoctorSSHKeysOnGitHubPaginates(t *testing.T) {
+	var key string
+	e, _, _ := testEnv(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch {
+		case r.URL.Path == "/rate_limit":
+			w.Header().Set("X-Oauth-Scopes", "")
+			io.WriteString(w, rateBody)
+		case r.URL.Path == "/users/octo/keys" && r.URL.Query().Get("page") == "":
+			w.Header().Set("Link", `<https://api.github.com/users/octo/keys?per_page=100&page=2>; rel="next"`)
+			io.WriteString(w, "["+strings.Repeat(`{"key":"ssh-ed25519 AAAA"},`, 99)+`{"key":"ssh-ed25519 AAAA"}]`)
+		case r.URL.Path == "/users/octo/keys":
+			io.WriteString(w, `[{"key":"`+key+`"}]`)
+		default:
+			http.NotFound(w, r)
+		}
+	}))
+	e.goos, e.uid, e.username = "linux", 1001, "agent"
+	key = plantSSHKey(t, e.home)
+	if r := runWith(t, registry, e, "doctor", "--login", "octo"); !strings.Contains(r.stdout, "; registered on GitHub for octo\n") {
+		t.Fatalf("exit %d, stderr %q, stdout:\n%s", r.code, r.stderr, r.stdout)
+	}
+}

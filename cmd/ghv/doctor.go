@@ -120,23 +120,26 @@ func (a *app) whoAmI(ctx context.Context) (string, error) {
 	return u.Login, nil
 }
 
+// maxUserKeys bounds the pages of an account's SSH keys doctor reads.
+const maxUserKeys = 1000
+
 func (a *app) userKeys(ctx context.Context, login string) ([]string, error) {
 	c, err := a.read()
 	if err != nil {
 		return nil, err
 	}
-	resp, err := c.Get(ctx, "users/"+url.PathEscape(login)+"/keys?per_page=100", "")
+	items, err := c.Paginate(ctx, "users/"+url.PathEscape(login)+"/keys", "", maxUserKeys)
 	if err != nil {
 		return nil, err
 	}
-	var keys []struct {
-		Key string `json:"key"`
-	}
-	if err := json.Unmarshal(resp.Body, &keys); err != nil {
-		return nil, fmt.Errorf("GET users/%s/keys: %v", login, err)
-	}
-	out := make([]string, len(keys))
-	for i, k := range keys {
+	out := make([]string, len(items))
+	for i, it := range items {
+		var k struct {
+			Key string `json:"key"`
+		}
+		if err := json.Unmarshal(it, &k); err != nil {
+			return nil, fmt.Errorf("GET users/%s/keys: %v", login, err)
+		}
 		out[i] = k.Key
 	}
 	return out, nil

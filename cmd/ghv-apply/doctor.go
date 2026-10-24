@@ -136,18 +136,28 @@ func programRunner(home, runtimeDir string, uid int, gits []string) func(ctx con
 	}
 }
 
-// userKeys reads an account's SSH keys anonymously; ghv-apply has no
-// login of its own to fall back on.
+// userKeys reads up to ten pages of an account's SSH keys anonymously;
+// ghv-apply has no login of its own to fall back on.
 func userKeys(ctx context.Context, c *http.Client, login string) ([]string, error) {
-	var keys []struct {
-		Key string `json:"key"`
-	}
-	if err := fetch.New(c).GetJSON(ctx, "/users/"+url.PathEscape(login)+"/keys?per_page=100", &keys); err != nil {
-		return nil, err
-	}
-	out := make([]string, len(keys))
-	for i, k := range keys {
-		out[i] = k.Key
+	var out []string
+	path := "/users/" + url.PathEscape(login) + "/keys?per_page=100"
+	for page := 1; page <= 10; page++ {
+		var keys []struct {
+			Key string `json:"key"`
+		}
+		p := path
+		if page > 1 {
+			p += "&page=" + strconv.Itoa(page)
+		}
+		if err := fetch.New(c).GetJSON(ctx, p, &keys); err != nil {
+			return nil, err
+		}
+		for _, k := range keys {
+			out = append(out, k.Key)
+		}
+		if len(keys) < 100 {
+			break
+		}
 	}
 	return out, nil
 }

@@ -20,7 +20,12 @@ type Line struct {
 
 // shipped are the docs, from the repository root, whose command lines
 // must parse.
-var shipped = []string{}
+var shipped = []string{
+	"SECURITY.md",
+	"docs/containment.md",
+	"docs/smoke-test.md",
+	"docs/workflow.md",
+}
 
 // Shipped extracts the command lines of every shipped doc under root.
 func Shipped(root string) ([]Line, error) {

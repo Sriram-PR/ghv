@@ -42,6 +42,7 @@ func Shipped(root string) ([]Line, error) {
 	return out, nil
 }
 
+// Extract reads file and returns its command lines.
 func Extract(file string) ([]Line, error) {
 	b, err := os.ReadFile(file)
 	if err != nil {

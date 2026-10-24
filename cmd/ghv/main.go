@@ -11,6 +11,8 @@ import (
 	"slices"
 	"strconv"
 	"time"
+
+	"github.com/Sriram-PR/ghv/internal/draft"
 )
 
 // registry is filled by each command file's init.
@@ -45,6 +47,7 @@ func main() {
 		stderr:     os.Stderr,
 		home:       home,
 		passwdHome: passwdHome,
+		sharedRoot: draft.SharedRoot,
 		getenv:     os.Getenv,
 		dir:        dir,
 		now:        time.Now,

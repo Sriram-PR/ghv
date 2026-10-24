@@ -15,9 +15,6 @@ import (
 	"github.com/Sriram-PR/ghv/internal/write"
 )
 
-// queueRoot is where ghv writes drafts, under the passwd home (§6.3).
-func queueRoot(home string) string { return filepath.Join(home, ".local", "share", "ghv") }
-
 // item is one pending draft, or the error that kept it from being read.
 type item struct {
 	id     string
@@ -50,6 +47,10 @@ type session struct {
 // runReview shows each pending draft, oldest first, with its live context
 // and verdict, and takes the reviewer's answer from the terminal.
 func runReview(ctx context.Context, e env) error {
+	q, err := draft.Locate(e.sharedRoot, e.home)
+	if err != nil {
+		return err
+	}
 	tty, err := e.openTTY()
 	if err != nil {
 		return err
@@ -59,7 +60,6 @@ func runReview(ctx context.Context, e env) error {
 	if err != nil {
 		return err
 	}
-	q := draft.Queue{Root: queueRoot(e.home)}
 	lock, err := q.Lock()
 	if err != nil {
 		return err

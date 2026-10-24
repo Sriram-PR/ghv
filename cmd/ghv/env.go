@@ -21,6 +21,7 @@ type env struct {
 	stdout, stderr io.Writer
 	home           string
 	passwdHome     string // "" when the passwd lookup failed
+	sharedRoot     string // draft.SharedRoot; "" for none
 	getenv         func(string) string
 	dir            string
 	transport      http.RoundTripper
@@ -68,17 +69,22 @@ func (e env) tokenPath() string {
 
 func (e env) cacheDir() string { return e.xdg("XDG_CACHE_HOME", ".cache") }
 
-// draftQueue ignores XDG_DATA_HOME: ghv-apply finds the queue from the
-// passwd entry's home, so ghv must put it under the same home. A $HOME
-// pointing elsewhere is refused: drafts there would never reach the human.
+// draftQueue is the shared queue when there is one. The home queue
+// ignores XDG_DATA_HOME: ghv-apply finds it from the passwd entry's home,
+// so ghv must put it under the same home. A $HOME pointing elsewhere is
+// refused: drafts there would never reach the human.
 func (e env) draftQueue() (draft.Queue, error) {
+	q, err := draft.Locate(e.sharedRoot, e.passwdHome)
+	if err != nil || q.Shared() {
+		return q, err
+	}
 	if e.passwdHome == "" {
 		return draft.Queue{}, errors.New("no passwd entry for this user; ghv-apply reads drafts from the passwd home")
 	}
 	if !sameDir(e.home, e.passwdHome) {
 		return draft.Queue{}, fmt.Errorf("$HOME is %s, not the passwd home %s; ghv-apply reads drafts from the passwd home", e.home, e.passwdHome)
 	}
-	return draft.Queue{Root: filepath.Join(e.passwdHome, ".local", "share", "ghv")}, nil
+	return q, nil
 }
 
 func sameDir(a, b string) bool {

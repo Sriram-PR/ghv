@@ -16,6 +16,7 @@ import (
 	"time"
 
 	"github.com/Sriram-PR/ghv/internal/doctor"
+	"github.com/Sriram-PR/ghv/internal/draft"
 	"github.com/Sriram-PR/ghv/internal/harden"
 	"github.com/Sriram-PR/ghv/internal/sanitize"
 )
@@ -25,6 +26,7 @@ import (
 type env struct {
 	stdout, stderr io.Writer
 	home           string // from the passwd entry, never $HOME
+	sharedRoot     string // draft.SharedRoot; "" for none
 	openTTY        func() (terminal, error)
 	edit           func(path string) error // opens path in the reviewer's editor
 	client         *http.Client
@@ -79,14 +81,15 @@ func main() {
 	}
 	exe, _ := os.Executable()
 	os.Exit(run(context.Background(), os.Args[1:], env{
-		stdout:  os.Stdout,
-		stderr:  os.Stderr,
-		home:    home,
-		openTTY: openDevTTY,
-		edit:    editOnTTY,
-		client:  harden.Client(harden.Transport()),
-		rand:    rand.Reader,
-		now:     time.Now,
+		stdout:     os.Stdout,
+		stderr:     os.Stderr,
+		home:       home,
+		sharedRoot: draft.SharedRoot,
+		openTTY:    openDevTTY,
+		edit:       editOnTTY,
+		client:     harden.Client(harden.Transport()),
+		rand:       rand.Reader,
+		now:        time.Now,
 		afterFunc: func(d time.Duration, f func()) func() bool {
 			return time.AfterFunc(d, f).Stop
 		},

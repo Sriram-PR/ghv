@@ -4,6 +4,7 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"testing"
 	"time"
@@ -11,6 +12,9 @@ import (
 	"github.com/Sriram-PR/ghv/internal/draft"
 	"github.com/Sriram-PR/ghv/internal/harden"
 )
+
+// queueRoot is the home queue, where ghv-apply looks with no shared queue.
+func queueRoot(home string) string { return filepath.Join(home, ".local", "share", "ghv") }
 
 func at(hour int) time.Time { return time.Date(2026, 10, 16, hour, 0, 0, 0, time.UTC) }
 
@@ -315,5 +319,17 @@ func TestReviewIdleTimerLosesToAnAnswer(t *testing.T) {
 	}
 	if strings.Contains(ft.shown(), "No answer for 5 minutes") || !strings.Contains(ft.shown(), "Left "+id+" in the queue.") {
 		t.Fatalf("terminal:\n%s", ft.shown())
+	}
+}
+
+func TestReviewRefusesAnUnsafeSharedQueue(t *testing.T) {
+	ft := &fakeTerm{t: t}
+	e, _ := reviewEnv(t, ft, nil)
+	e.sharedRoot = t.TempDir()
+	queueDraft(t, e.home, draft.Draft{Repo: "o/r", CreatedAt: at(9), Fields: draft.CommentFields{Number: 7, Body: "hi"}})
+	r := runWith(e)
+	want := "ghv-apply: the shared queue at " + e.sharedRoot + " is not safe to use: " + e.sharedRoot + " belongs to uid " + strconv.Itoa(os.Getuid()) + ", not root; sudo chown root:root " + e.sharedRoot + "\n"
+	if r.code != 1 || r.stderr != want || ft.out.String() != "" {
+		t.Fatalf("exit %d, stderr %q, terminal %q", r.code, r.stderr, ft.out.String())
 	}
 }

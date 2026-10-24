@@ -5,6 +5,7 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
+	"strconv"
 	"strings"
 	"testing"
 
@@ -227,4 +228,24 @@ func TestDraftingFollowsASymlinkedHome(t *testing.T) {
 		t.Fatalf("exit %d, stdout %q, stderr %q", r.code, r.stdout, r.stderr)
 	}
 	queued(t, e)
+}
+
+// A shared root not owned by root is refused, even with a good passwd
+// home, and nothing falls back to the home queue.
+func TestDraftingRefusesAnUnsafeSharedQueue(t *testing.T) {
+	e, _, _ := testEnv(t, noNetwork(t))
+	e.sharedRoot = t.TempDir()
+	writeFile(t, filepath.Join(e.dir, "b.md"), "body\n")
+	want := "ghv: the shared queue at " + e.sharedRoot + " is not safe to use: " + e.sharedRoot + " belongs to uid " + strconv.Itoa(os.Getuid()) + ", not root; sudo chown root:root " + e.sharedRoot + "\n"
+	for _, args := range [][]string{
+		{"issue", "create", "-R", "o/r", "--title", "T", "--body-file", "b.md"},
+		{"drafts"},
+	} {
+		if r := runWith(t, registry, e, args...); r.code != 1 || r.stdout != "" || r.stderr != want {
+			t.Fatalf("%q: exit %d, stdout %q, stderr %q", args, r.code, r.stdout, r.stderr)
+		}
+	}
+	if _, err := os.Stat(filepath.Join(e.passwdHome, ".local")); !os.IsNotExist(err) {
+		t.Fatalf("home queue: %v", err)
+	}
 }

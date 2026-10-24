@@ -93,23 +93,24 @@ func doctorEnv(e env) (doctor.Env, error) {
 // environment.
 var gitPaths = []string{"/usr/bin/git", "/usr/local/bin/git", "/opt/homebrew/bin/git", "/Library/Developer/CommandLineTools/usr/bin/git"}
 
-// programRunner runs git, from the first of gitPaths that exists, or
-// macOS's security, for doctor. The environment is built here, not
-// inherited: the passwd home, a fixed PATH for helpers, the runtime
-// directory for the keyring's bus, and every prompt off.
-func programRunner(home, runtimeDir string, uid int, gitPaths []string) func(ctx context.Context, stdin, name string, args ...string) ([]byte, error) {
+// programRunner runs git, from the first of gits that exists, or macOS's
+// security, for doctor. The environment is built here, not inherited: the
+// passwd home, a fixed PATH for helpers, the runtime directory for the
+// keyring's bus, and every prompt off. It runs from /, so no repository's
+// config names a helper.
+func programRunner(home, runtimeDir string, uid int, gits []string) func(ctx context.Context, stdin, name string, args ...string) ([]byte, error) {
 	return func(ctx context.Context, stdin, name string, args ...string) ([]byte, error) {
 		var path string
 		switch name {
 		case "git":
-			for _, p := range gitPaths {
+			for _, p := range gits {
 				if fi, err := os.Stat(p); err == nil && fi.Mode().IsRegular() {
 					path = p
 					break
 				}
 			}
 			if path == "" {
-				return nil, fmt.Errorf("no git at %s", strings.Join(gitPaths, ", "))
+				return nil, fmt.Errorf("no git at %s", strings.Join(gits, ", "))
 			}
 		case "security":
 			path = "/usr/bin/security"
@@ -117,6 +118,7 @@ func programRunner(home, runtimeDir string, uid int, gitPaths []string) func(ctx
 			return nil, fmt.Errorf("doctor runs only git and security, not %q", name)
 		}
 		cmd := exec.CommandContext(ctx, path, args...)
+		cmd.Dir = "/"
 		cmd.Env = []string{"HOME=" + home, "PATH=/usr/bin:/bin", "GIT_TERMINAL_PROMPT=0", "GCM_INTERACTIVE=never"}
 		if rt := filepath.Join(runtimeDir, strconv.Itoa(uid)); runtimeDir != "" {
 			if fi, err := os.Stat(rt); err == nil && fi.IsDir() {

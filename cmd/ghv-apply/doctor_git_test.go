@@ -9,12 +9,12 @@ import (
 )
 
 // fakeProgram writes an executable named name in a new directory that
-// records its environment, arguments, and stdin, prints out, and exits
-// with code.
+// records its environment, arguments, stdin, and working directory, prints
+// out, and exits with code.
 func fakeProgram(t *testing.T, name, out string, code int) string {
 	t.Helper()
 	dir := t.TempDir()
-	script := "#!/bin/sh\nd=$(dirname \"$0\")\nenv > \"$d/env.txt\"\necho \"$@\" > \"$d/args.txt\"\ncat > \"$d/stdin.txt\"\nprintf '" + out + "'\nexit " + string(rune('0'+code)) + "\n"
+	script := "#!/bin/sh\nd=$(dirname \"$0\")\nenv > \"$d/env.txt\"\npwd > \"$d/cwd.txt\"\necho \"$@\" > \"$d/args.txt\"\ncat > \"$d/stdin.txt\"\nprintf '" + out + "'\nexit " + string(rune('0'+code)) + "\n"
 	if err := os.WriteFile(filepath.Join(dir, name), []byte(script), 0o755); err != nil {
 		t.Fatal(err)
 	}
@@ -47,5 +47,18 @@ func TestProgramRunner(t *testing.T) {
 	}
 	if _, err := programRunner(home, "", 1001, nil)(context.Background(), "", "rm", "-rf", "/"); err == nil || err.Error() != `doctor runs only git and security, not "rm"` {
 		t.Fatalf("err %v", err)
+	}
+}
+
+// A repository in the working directory could name a credential.helper
+// that git would run, so git runs from /.
+func TestProgramRunnerLeavesTheWorkingDirectory(t *testing.T) {
+	dir := fakeProgram(t, "git", "", 0)
+	t.Chdir(t.TempDir())
+	if _, err := programRunner(t.TempDir(), "", 1001, []string{filepath.Join(dir, "git")})(context.Background(), "", "git", "version"); err != nil {
+		t.Fatal(err)
+	}
+	if b, _ := os.ReadFile(filepath.Join(dir, "cwd.txt")); string(b) != "/\n" {
+		t.Fatalf("git ran in %q", b)
 	}
 }
